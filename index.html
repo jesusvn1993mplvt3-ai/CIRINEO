@@ -1,1 +1,328 @@
 
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Producción - Cirineo 2025</title>
+    
+    <!-- React y ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    
+    <!-- Babel para procesar JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        // Importar Firebase
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getFirestore, collection, doc, setDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+        const { useState, useEffect, useMemo } = React;
+
+        // ==========================================
+        // 1. TU CONFIGURACIÓN (YA INTEGRADA)
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyBqHgV4vDat1-VmZfKbiPg7nuiX-ROcexw",
+            authDomain: "cirineo-cec21.firebaseapp.com",
+            projectId: "cirineo-cec21",
+            storageBucket: "cirineo-cec21.firebasestorage.app",
+            messagingSenderId: "620210618284",
+            appId: "1:620210618284:web:482bab9bf74650fff18409",
+            measurementId: "G-B7YLM78RVW"
+        };
+
+        // Inicializar Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // ==========================================
+        // DATOS DE MÁQUINAS
+        // ==========================================
+        const MACHINES = [
+            { id: 'm35', name: 'MAQ 35', type: 'SANTONI SM8 TOP 2V', diam: 16, needles: 1440, gauge: 28 },
+            { id: 'm39', name: 'MAQ 39', type: 'SANTONI SM8 TOP 2V', diam: 16, needles: 1440, gauge: 28 },
+            { id: 'm40', name: 'MAQ 40', type: 'SANTONI SM8 TOP 2V', diam: 16, needles: 1440, gauge: 28 },
+            { id: 'm36', name: 'MAQ 36', type: 'CIXING GE82', diam: 15, needles: 1344, gauge: 28 },
+            { id: 'm38', name: 'MAQ 38', type: 'SANTONI SM8 TOP 2V', diam: 15, needles: 1344, gauge: 28 },
+            { id: 'm37', name: 'MAQ 37', type: 'SANTONI SM8 TOP 2V', diam: 15, needles: 1344, gauge: 28 },
+            { id: 'm29', name: 'MAQ 29', type: 'SANTONI SM8 EVO 4', diam: 16, needles: 1296, gauge: 26 },
+            { id: 'm28', name: 'MAQ 28', type: 'SANTONI SM8 EVO 4', diam: 16, needles: 1296, gauge: 26 },
+            { id: 'm27', name: 'MAQ 27', type: 'SANTONI SM8 EVO 4', diam: 15, needles: 1248, gauge: 26 },
+            { id: 'm33', name: 'MAQ 33', type: 'SANTONI SM8 EVO 4', diam: 15, needles: 1344, gauge: 28 },
+            { id: 'm1',  name: 'MAQ 1',  type: 'CIXING', diam: 14, needles: 1248, gauge: 28 },
+            { id: 'm30', name: 'MAQ 30', type: 'CIXING GE82', diam: 14, needles: 1248, gauge: 28 },
+            { id: 'm31', name: 'MAQ 31', type: 'CIXING GE82', diam: 14, needles: 1248, gauge: 28 },
+            { id: 'm6',  name: 'MAQ 6',  type: 'CIXING GE82', diam: 14, needles: 1248, gauge: 28 },
+            { id: 'm32', name: 'MAQ 32', type: 'CIXING GE82', diam: 14, needles: 1248, gauge: 28 },
+            { id: 'm13', name: 'MAQ 13', type: 'SANTONI SM8 EVO 4', diam: 13, needles: 1056, gauge: 26 },
+            { id: 'm12', name: 'MAQ 12', type: 'SANTONI SM8 EVO 4', diam: 13, needles: 1056, gauge: 26 },
+            { id: 'm24', name: 'MAQ 24', type: 'SANTONI SM8 EVO 4', diam: 13, needles: 1056, gauge: 26 },
+            { id: 'm8',  name: 'MAQ 8',  type: 'SANTONI SM8 TOP 2', diam: 13, needles: 1152, gauge: 28 },
+        ];
+
+        const INITIAL_ROWS = [
+            'MIERCOLES 12', 'JUEVES 13', 'VIERNES 14', 
+            'LUNES 17', 'MARTES 18', 'MIERCOLES 19', 
+            'JUEVES 20', 'VIERNES 21'
+        ];
+
+        // Componente Icono Máquina
+        const SantoniMachineIcon = ({ className }) => (
+            <svg viewBox="0 0 100 120" className={className} fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="20" y="90" width="60" height="20" rx="2" fill="#e2e8f0" stroke="#475569" />
+                <path d="M25 90 L25 110 M75 90 L75 110" stroke="#94a3b8" />
+                <path d="M30 90 L30 40 Q50 35 70 40 L70 90" fill="#f8fafc" stroke="#334155" />
+                <path d="M30 40 Q50 45 70 40" fill="none" stroke="#334155" />
+                <line x1="35" y1="50" x2="65" y2="50" stroke="#cbd5e1" strokeWidth="1" />
+                <line x1="35" y1="60" x2="65" y2="60" stroke="#cbd5e1" strokeWidth="1" />
+                <line x1="35" y1="70" x2="65" y2="70" stroke="#cbd5e1" strokeWidth="1" />
+                <line x1="35" y1="80" x2="65" y2="80" stroke="#cbd5e1" strokeWidth="1" />
+                <line x1="50" y1="40" x2="50" y2="10" stroke="#475569" strokeWidth="2" />
+                <line x1="50" y1="10" x2="20" y2="20" stroke="#64748b" />
+                <line x1="50" y1="10" x2="80" y2="20" stroke="#64748b" />
+                <circle cx="20" cy="20" r="3" fill="#3b82f6" stroke="none" />
+                <circle cx="80" cy="20" r="3" fill="#3b82f6" stroke="none" />
+                <path d="M20 23 L35 45" stroke="#3b82f6" strokeWidth="0.5" strokeDasharray="2 2" />
+                <path d="M80 23 L65 45" stroke="#3b82f6" strokeWidth="0.5" strokeDasharray="2 2" />
+            </svg>
+        );
+
+        const App = () => {
+            const [user, setUser] = useState(null);
+            const [productionData, setProductionData] = useState({});
+            const [loading, setLoading] = useState(true);
+            const [savingStatus, setSavingStatus] = useState('idle');
+
+            // Cargar Iconos Lucide
+            useEffect(() => {
+                if (window.lucide) window.lucide.createIcons();
+            });
+
+            // Autenticación Anónima
+            useEffect(() => {
+                const unsubscribe = onAuthStateChanged(auth, setUser);
+                signInAnonymously(auth).catch((error) => {
+                    console.error("Error Auth:", error);
+                    alert("Error de autenticación. Verifica que 'Anonymous Auth' esté activado en Firebase Console.");
+                });
+                return () => unsubscribe();
+            }, []);
+
+            // Escuchar Datos en Tiempo Real
+            useEffect(() => {
+                if (!user) return;
+
+                // Conectamos a la colección 'produccion_2025'
+                const q = collection(db, 'produccion_2025');
+                
+                const unsubscribe = onSnapshot(q, (snapshot) => {
+                    const data = {};
+                    snapshot.forEach((doc) => {
+                        data[doc.id] = doc.data();
+                    });
+                    setProductionData(data);
+                    setLoading(false);
+                }, (error) => {
+                    console.error("Error obteniendo datos:", error);
+                    setLoading(false);
+                });
+
+                return () => unsubscribe();
+            }, [user]);
+
+            // Guardar Cambios
+            const handleCellChange = async (rowId, machineId, value) => {
+                const numericValue = value === '' ? '' : Number(value);
+                if (isNaN(numericValue)) return;
+
+                setSavingStatus('saving');
+                try {
+                    const docRef = doc(db, 'produccion_2025', rowId);
+                    await setDoc(docRef, { [machineId]: numericValue }, { merge: true });
+                    setSavingStatus('saved');
+                    setTimeout(() => setSavingStatus('idle'), 2000);
+                } catch (err) {
+                    console.error("Error guardando:", err);
+                    setSavingStatus('error');
+                    alert("Error al guardar. Verifica las Reglas de Firestore en Firebase Console.");
+                }
+            };
+
+            // Calcular Totales
+            const totals = useMemo(() => {
+                const rowTotals = {};
+                const colTotals = {};
+                let grandTotal = 0;
+
+                MACHINES.forEach(m => colTotals[m.id] = 0);
+
+                INITIAL_ROWS.forEach(row => {
+                    let rTotal = 0;
+                    MACHINES.forEach(m => {
+                        const val = productionData[row]?.[m.id] || 0;
+                        rTotal += val;
+                        colTotals[m.id] += val;
+                    });
+                    rowTotals[row] = rTotal;
+                    grandTotal += rTotal;
+                });
+
+                return { rowTotals, colTotals, grandTotal };
+            }, [productionData]);
+
+            if (!user || loading) {
+                return (
+                    <div className="flex items-center justify-center h-screen bg-slate-50 text-slate-600">
+                        <div className="flex flex-col items-center gap-4">
+                            <i data-lucide="loader-2" className="w-10 h-10 animate-spin text-blue-600"></i>
+                            <p>Conectando a Firebase...</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
+                    {/* HEADER */}
+                    <header className="bg-white shadow-sm border-b border-slate-200 sticky top-0 z-20">
+                        <div className="w-full px-4 py-3 flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-blue-600 p-2 rounded-lg text-white">
+                                    <i data-lucide="factory" className="w-6 h-6"></i>
+                                </div>
+                                <div>
+                                    <h1 className="text-xl font-bold text-slate-800">Control de Producción - Cirineo 2025</h1>
+                                    <p className="text-xs text-slate-500 flex items-center gap-1">
+                                        <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                                        En línea
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <div className="flex items-center gap-4">
+                                {savingStatus === 'saving' && <span className="text-xs text-blue-500 font-medium">Guardando...</span>}
+                                {savingStatus === 'saved' && <span className="text-xs text-green-600 font-medium">Guardado</span>}
+                                {savingStatus === 'error' && <span className="text-xs text-red-600 font-medium">Error</span>}
+                                <div className="bg-slate-100 px-3 py-1 rounded-full text-xs font-medium text-slate-600 flex items-center gap-2">
+                                    <i data-lucide="users" className="w-3 h-3"></i>
+                                    Colaborativo
+                                </div>
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* MAIN TABLE */}
+                    <main className="flex-1 overflow-auto p-4">
+                        <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
+                            <div className="overflow-x-auto custom-scrollbar pb-2">
+                                <table className="w-full border-collapse min-w-[2000px]">
+                                    <thead>
+                                        <tr className="bg-slate-50 border-b border-slate-200">
+                                            <th className="sticky left-0 z-10 bg-slate-50 p-4 min-w-[150px] border-r border-slate-200 text-left shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                                <div className="flex flex-col gap-1">
+                                                    <span className="font-bold text-slate-700">FECHA</span>
+                                                    <span className="text-xs text-slate-400 font-normal">PRODUCCIÓN</span>
+                                                </div>
+                                            </th>
+                                            {MACHINES.map(machine => (
+                                                <th key={machine.id} className="p-2 min-w-[100px] border-r border-slate-100 align-bottom group hover:bg-slate-100 transition-colors">
+                                                    <div className="flex flex-col items-center gap-2 pb-2">
+                                                        <div className="w-12 h-14 mb-1 transform group-hover:scale-110 transition-transform duration-300">
+                                                            <SantoniMachineIcon className="w-full h-full text-slate-700" />
+                                                        </div>
+                                                        <span className="font-bold text-blue-700 text-sm">{machine.name}</span>
+                                                        <div className="text-[10px] text-slate-500 font-normal leading-tight text-center">
+                                                            {machine.type.replace('SANTONI', '')}<br/>
+                                                            {machine.diam}" - {machine.needles}ag<br/>
+                                                            G{machine.gauge}
+                                                        </div>
+                                                    </div>
+                                                </th>
+                                            ))}
+                                            <th className="sticky right-0 z-10 bg-slate-50 p-4 min-w-[100px] border-l border-slate-200 text-center text-slate-700 font-bold shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                                TOTAL<br/>DIARIO
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {INITIAL_ROWS.map((rowLabel, rowIndex) => (
+                                            <tr key={rowLabel} className={`border-b border-slate-100 hover:bg-blue-50/50 transition-colors ${rowIndex % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}`}>
+                                                <td className="sticky left-0 z-10 bg-inherit p-3 border-r border-slate-200 font-medium text-slate-700 text-sm whitespace-nowrap shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                                    <div className="flex items-center gap-2">
+                                                        <i data-lucide="calendar" className="w-3 h-3 text-slate-400"></i>
+                                                        {rowLabel}
+                                                    </div>
+                                                </td>
+                                                {MACHINES.map(machine => {
+                                                    const val = productionData[rowLabel]?.[machine.id] ?? '';
+                                                    return (
+                                                        <td key={`${rowLabel}-${machine.id}`} className="p-0 border-r border-slate-100 relative">
+                                                            <input
+                                                                type="number"
+                                                                placeholder="-"
+                                                                className="w-full h-full py-3 text-center bg-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all text-slate-800 font-medium placeholder-slate-200"
+                                                                value={val}
+                                                                onChange={(e) => handleCellChange(rowLabel, machine.id, e.target.value)}
+                                                            />
+                                                        </td>
+                                                    );
+                                                })}
+                                                <td className="sticky right-0 z-10 bg-slate-50 p-3 border-l border-slate-200 text-center font-bold text-blue-600 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                                    {totals.rowTotals[rowLabel] > 0 ? totals.rowTotals[rowLabel].toLocaleString() : '-'}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                    <tfoot className="bg-slate-100 border-t-2 border-slate-300">
+                                        <tr>
+                                            <td className="sticky left-0 z-10 bg-slate-100 p-4 font-bold text-slate-800 border-r border-slate-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                                TOTAL SEMANA
+                                            </td>
+                                            {MACHINES.map(machine => (
+                                                <td key={`total-${machine.id}`} className="p-3 text-center font-bold text-slate-700 border-r border-slate-200 bg-slate-100">
+                                                    {totals.colTotals[machine.id] > 0 ? totals.colTotals[machine.id].toLocaleString() : '-'}
+                                                </td>
+                                            ))}
+                                            <td className="sticky right-0 z-10 bg-slate-200 p-3 text-center font-black text-blue-800 border-l border-slate-300 text-lg shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                                {totals.grandTotal > 0 ? totals.grandTotal.toLocaleString() : '-'}
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
+
+
