@@ -3,36 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Control de Producción - Cirineo 2025</title>
+    <title>Control de Producción - Cirineo 2025/2026</title>
     
-    <!-- React y ReactDOM -->
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
     
-    <!-- Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     
     <style>
-        .custom-scrollbar::-webkit-scrollbar { height: 10px; width: 10px; }
+        .custom-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 5px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
-        
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         input[type=number]::-webkit-inner-spin-button, 
         input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         
-        /* Animación de carga */
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .spinner { animation: spin 1s linear infinite; }
+        .machine-col { min-width: 100px; width: 100px; }
+        .machine-col.expanded { min-width: 200px; width: 200px; }
         
-        /* Icono de Google para el botón */
-        .google-icon { width: 18px; height: 18px; margin-right: 8px; }
+        /* Animaciones */
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800">
@@ -40,25 +35,15 @@
     <div id="root"></div>
 
     <script type="text/babel" data-type="module">
-        // Importaciones de Firebase
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-        import { 
-            getAuth, 
-            onAuthStateChanged, 
-            signInWithEmailAndPassword, 
-            createUserWithEmailAndPassword, 
-            signOut,
-            GoogleAuthProvider, // <--- NUEVO: Proveedor de Google
-            signInWithPopup,    // <--- NUEVO: Función para pop-up de Sign-In
-        } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
         import { getFirestore, collection, doc, setDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
-        const { useState, useEffect, useRef, useMemo } = React;
+        const { useState, useEffect, useMemo, useCallback } = React;
 
-        // --- FIREBASE SETUP ---
-        // ATENCIÓN: Debe asegurarse de que Email/Password y Google Sign-In estén habilitados.
+        // --- FIREBASE CONFIG ---
         const firebaseConfig = {
-            apiKey: "AIzaSyBqHgV4vDat1-VmZfKbiPg7nuiX-ROcexm",
+            apiKey: "AIzaSyBqHgV4vDat1-VmZfKbiPg7nuiX-ROcexw",
             authDomain: "cirineo-cec21.firebaseapp.com",
             projectId: "cirineo-cec21",
             storageBucket: "cirineo-cec21.firebasestorage.app",
@@ -72,252 +57,88 @@
         const db = getFirestore(app);
 
         // --- CONSTANTES ---
-        const ROLES = { ADMIN: 'admin', COMMENTATOR: 'commentator', OBSERVER: 'observer', OPERATOR: 'operator' };
-        const VIEWER_ROLES = [ROLES.ADMIN, ROLES.COMMENTATOR];
-        
-        // Mapeo de roles basado en el correo electrónico. (ACTUALIZADO CON LOS NUEVOS EMAILS)
-        const USERS_BY_EMAIL = {
-            'roussmiss65@gmail.com': { name: 'Marco Espinoza (Admin)', role: ROLES.ADMIN },
-            'vivaroussseamless@gmail.com': { name: 'Prisciliano (Comentador)', role: ROLES.COMMENTATOR },
-            'jesusvn1993mplvt6@gmail.com': { name: 'Turno Mañana (Operador)', role: ROLES.OPERATOR },
-            
-            // Manteniendo los anteriores como fallback
-            'admin@cirineo.com': { name: 'Marco Espinoza (Admin)', role: ROLES.ADMIN },
-            'comentador@cirineo.com': { name: 'Prisciliano (Comentador)', role: ROLES.COMMENTATOR },
-            'operador@cirineo.com': { name: 'Turno Mañana (Operador)', role: ROLES.OPERATOR },
-        };
+        const ADMIN_PIN = "1352";
         
         const MACHINES = [
-            { id: 'm35', name: 'MAQ 35', type: 'SANTONI SM8', diam: 16, needles: 1440 },
-            { id: 'm39', name: 'MAQ 39', type: 'SANTONI SM8', diam: 16, needles: 1440 },
-            { id: 'm40', name: 'MAQ 40', type: 'SANTONI SM8', diam: 16, needles: 1440 },
-            { id: 'm36', name: 'MAQ 36', type: 'CIXING GE82', diam: 15, needles: 1344 },
-            { id: 'm38', name: 'MAQ 38', type: 'SANTONI SM8', diam: 15, needles: 1344 },
-            { id: 'm37', name: 'MAQ 37', type: 'SANTONI SM8', diam: 15, needles: 1344 },
-            { id: 'm29', name: 'MAQ 29', type: 'SANTONI EVO4', diam: 16, needles: 1296 },
-            { id: 'm28', name: 'MAQ 28', type: 'SANTONI EVO4', diam: 16, needles: 1296 },
-            { id: 'm27', name: 'MAQ 27', type: 'SANTONI EVO4', diam: 15, needles: 1248 },
-            { id: 'm33', name: 'MAQ 33', type: 'SANTONI EVO4', diam: 15, needles: 1344 },
-            { id: 'm1',  name: 'MAQ 1',  type: 'CIXING', diam: 14, needles: 1248 },
-            { id: 'm30', name: 'MAQ 30', type: 'CIXING GE82', diam: 14, needles: 1248 },
-            { id: 'm31', name: 'MAQ 31', type: 'CIXING GE82', diam: 14, needles: 1248 },
-            { id: 'm6',  name: 'MAQ 6',  type: 'CIXING GE82', diam: 14, needles: 1248 },
-            { id: 'm32', name: 'MAQ 32', type: 'CIXING GE82', diam: 14, needles: 1248 },
-            { id: 'm13', name: 'MAQ 13', type: 'SANTONI EVO4', diam: 13, needles: 1056 },
-            { id: 'm12', name: 'MAQ 12', type: 'SANTONI EVO4', diam: 13, needles: 1056 },
-            { id: 'm24', name: 'MAQ 24', type: 'SANTONI EVO4', diam: 13, needles: 1056 },
-            { id: 'm8',  name: 'MAQ 8',  type: 'SANTONI TOP2', diam: 13, needles: 1152 },
+            { id: 'm35', name: 'MAQ 35', type: 'SANTONI SM8 TOP 2V', diam: 16 },
+            { id: 'm39', name: 'MAQ 39', type: 'SANTONI SM8 TOP 2V', diam: 16 },
+            { id: 'm40', name: 'MAQ 40', type: 'SANTONI SM8 TOP 2V', diam: 16 },
+            { id: 'm36', name: 'MAQ 36', type: 'CIXING GE82', diam: 15 },
+            { id: 'm38', name: 'MAQ 38', type: 'SANTONI SM8 TOP 2V', diam: 15 },
+            { id: 'm37', name: 'MAQ 37', type: 'SANTONI SM8 TOP 2V', diam: 15 },
+            { id: 'm29', name: 'MAQ 29', type: 'SANTONI SM8 EVO 4', diam: 16 },
+            { id: 'm28', name: 'MAQ 28', type: 'SANTONI SM8 EVO 4', diam: 16 },
+            { id: 'm27', name: 'MAQ 27', type: 'SANTONI SM8 EVO 4', diam: 15 },
+            { id: 'm33', name: 'MAQ 33', type: 'SANTONI SM8 EVO 4', diam: 15 },
+            { id: 'm1',  name: 'MAQ 1',  type: 'CIXING', diam: 14 },
+            { id: 'm30', name: 'MAQ 30', type: 'CIXING GE82', diam: 14 },
+            { id: 'm31', name: 'MAQ 31', type: 'CIXING GE82', diam: 14 },
+            { id: 'm6',  name: 'MAQ 6',  type: 'CIXING GE82', diam: 14 },
+            { id: 'm32', name: 'MAQ 32', type: 'CIXING GE82', diam: 14 },
+            { id: 'm13', name: 'MAQ 13', type: 'SANTONI SM8 EVO 4', diam: 13 },
+            { id: 'm12', name: 'MAQ 12', type: 'SANTONI SM8 EVO 4', diam: 13 },
+            { id: 'm24', name: 'MAQ 24', type: 'SANTONI SM8 EVO 4', diam: 13 },
+            { id: 'm8',  name: 'MAQ 8',  type: 'SANTONI SM8 TOP 2', diam: 13 },
         ];
 
-        // --- HELPER: CALENDARIO ---
-        const generateCalendar = () => {
-            const days = ['DOMINGO', 'LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO'];
-            const rows = [];
-            const addDate = (y, m, d, monthName) => {
-                const date = new Date(y, m, d);
-                const dayName = days[date.getDay()];
-                const id = `${dayName.toLowerCase()}_${d}_${monthName.toLowerCase()}`;
-                const label = `${dayName} ${d} ${monthName}`;
-                rows.push({ id, label });
-            };
-            for (let i = 10; i <= 28; i++) addDate(2025, 1, i, 'FEB');
-            for (let i = 1; i <= 20; i++) addDate(2025, 2, i, 'MAR');
-            return rows;
+        const ALL_ROWS = [
+            'MIERCOLES 12', 'JUEVES 13', 'VIERNES 14', 'SABADO 15', 'DOMINGO 16',
+            'LUNES 17', 'MARTES 18', 'MIERCOLES 19', 'JUEVES 20', 'VIERNES 21',
+            'SABADO 22', 'DOMINGO 23', 'LUNES 24', 'MARTES 25', 'MIERCOLES 26',
+            'JUEVES 27', 'VIERNES 28', 'SABADO 29', 'DOMINGO 30'
+        ];
+
+        // Semana por defecto para operadores
+        const CURRENT_WEEK_ROWS = ALL_ROWS.slice(0, 7); 
+
+        // --- COMPONENTES ---
+
+        const MachineIconImage = ({ className }) => {
+            const [hasError, setHasError] = useState(false);
+            const imageUrl = "https://raw.githubusercontent.com/jesusvn1993mplvt3-ai/CIRINEO/refs/heads/main/icon.png";
+            if (hasError) return <div className="text-xs text-gray-500"><i data-lucide="cpu" className="w-4 h-4"></i></div>;
+            return <img src={imageUrl} className={className + " object-contain"} onError={() => setHasError(true)} />;
         };
 
-        const ALL_ROWS = generateCalendar();
-        const CURRENT_WEEK_ROWS = ALL_ROWS.slice(2, 9); // Ejemplo de semana
+        // Modal para Validar PIN Admin
+        const AdminAuthModal = ({ onClose, onSuccess }) => {
+            const [pin, setPin] = useState('');
+            const [error, setError] = useState(false);
 
-        // --- COMPONENTE: Icono de Máquina ---
-        const MachineIconImage = () => (
-            <div className="w-8 h-8 opacity-80 rounded-full bg-blue-100 flex items-center justify-center p-1">
-                <i data-lucide="cog" className="w-full h-full object-contain text-blue-700"></i>
-            </div>
-        );
-
-        // --- COMPONENTE: Modal de Cálculos Locales (Admin/Comentador) ---
-        const AdminCalcModal = ({ machine, rowLabel, currentValue, onClose }) => {
-            const [timeMin, setTimeMin] = useState(0);
-            const [timeSec, setTimeSec] = useState(0);
-            const [hours, setHours] = useState(12);
-            const [viewingQty, setViewingQty] = useState(currentValue || 0);
-            
-            const { targetPieces, efficiency } = useMemo(() => {
-                const timePerPieceInMinutes = Number(timeMin) + (Number(timeSec) / 60);
-                const totalMinutes = Number(hours) * 60;
-                
-                const target = timePerPieceInMinutes > 0 ? Math.round(totalMinutes / timePerPieceInMinutes) : 0;
-                const eff = target > 0 ? (Number(viewingQty) / target) * 100 : 0;
-                
-                return { targetPieces: target, efficiency: parseFloat(eff.toFixed(1)) };
-            }, [timeMin, timeSec, hours, viewingQty]);
-
-            useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, []);
-
-            return (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden" onClick={e => e.stopPropagation()}>
-                        <div className="bg-blue-600 p-4 text-white flex justify-between items-center shrink-0">
-                            <h3 className="font-bold text-lg">Análisis Local de Producción</h3>
-                            <button onClick={onClose}><i data-lucide="x" className="w-6 h-6"></i></button>
-                        </div>
-                        
-                        <div className="p-6 space-y-6">
-                            <div className="text-center">
-                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">{rowLabel}</span>
-                                <h2 className="text-4xl font-black text-blue-700 mt-1">{machine.name}</h2>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4 border-b pb-4">
-                                <div><h4 className="font-bold text-slate-700 mb-2">1. Definir Capacidad (Meta)</h4></div>
-                                <div><h4 className="font-bold text-slate-700 mb-2">2. Producción a Analizar</h4></div>
-                                
-                                <div className="space-y-3 bg-slate-50 p-3 rounded-xl border">
-                                    <label className="block"><span className="text-xs font-bold text-slate-500">TIEMPO / PIEZA (Min)</span>
-                                        <input type="number" value={timeMin} onChange={(e) => setTimeMin(Number(e.target.value))} className="w-full text-center text-2xl p-2 border rounded-lg focus:border-blue-500" min="0" />
-                                    </label>
-                                    <label className="block"><span className="text-xs font-bold text-slate-500">TIEMPO / PIEZA (Seg)</span>
-                                        <input type="number" value={timeSec} onChange={(e) => setTimeSec(Number(e.target.value))} className="w-full text-center text-2xl p-2 border rounded-lg focus:border-blue-500" min="0" max="59" />
-                                    </label>
-                                    <label className="block"><span className="text-xs font-bold text-slate-500">HORAS TURNO</span>
-                                        <select value={hours} onChange={(e) => setHours(Number(e.target.value))} className="w-full p-2 border rounded-lg focus:border-blue-500 bg-white">
-                                            <option value={12}>12 Horas</option>
-                                            <option value={24}>24 Horas</option>
-                                        </select>
-                                    </label>
-                                </div>
-                                
-                                <div className="space-y-3 bg-slate-50 p-3 rounded-xl border">
-                                    <label className="block"><span className="text-xs font-bold text-slate-500">CANTIDAD PRODUCIDA (Local)</span>
-                                        <input type="number" value={viewingQty} onChange={(e) => setViewingQty(Number(e.target.value))} className="w-full text-center text-5xl font-black p-2 border rounded-lg text-green-700 focus:border-green-500" min="0" />
-                                        <p className="text-xs text-slate-400 mt-1">Valor inicial de la DB: {currentValue || 0}</p>
-                                    </label>
-                                </div>
-                            </div>
-
-                            <div className="flex justify-between items-center bg-blue-50 p-4 rounded-xl shadow-inner">
-                                <div className="text-left">
-                                    <p className="text-sm font-bold text-blue-700">META CALCULADA</p>
-                                    <span className="text-4xl font-black text-blue-900">{targetPieces.toLocaleString()} pzas</span>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-sm font-bold text-blue-700">EFICIENCIA (%)</p>
-                                    <span className={`text-4xl font-black ${efficiency>=100?'text-green-600': efficiency>70?'text-yellow-600':'text-red-600'}`}>{efficiency}%</span>
-                                </div>
-                            </div>
-
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
-        // --- COMPONENTE: Modal de Notas (Admin/Comentador) ---
-        const NotesModal = ({ user, machine, rowLabel, rowId, currentNote, onClose, onSave }) => {
-            const [note, setNote] = useState(currentNote || '');
-            const [isSaving, setIsSaving] = useState(false);
-
-            useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, []);
-
-            const handleSubmit = async () => {
-                setIsSaving(true);
-                try {
-                    await onSave(rowId, machine.id, note, user.name); // Pasar el nombre del usuario
-                    onClose();
-                } catch (e) {
-                    alert("Error guardando nota. Revisa la consola.");
-                    setIsSaving(false);
-                }
-            };
-
-            return (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
-                        <div className="bg-purple-600 p-4 text-white flex justify-between items-center shrink-0">
-                            <h3 className="font-bold text-lg flex items-center gap-2"><i data-lucide="message-square" className="w-5 h-5"></i> Notas de {machine.name}</h3>
-                            <button onClick={onClose}><i data-lucide="x" className="w-6 h-6"></i></button>
-                        </div>
-                        <div className="p-6 flex-1 overflow-y-auto">
-                            <p className="text-sm font-bold text-slate-500 uppercase mb-4">{rowLabel}</p>
-                            <textarea 
-                                value={note} 
-                                onChange={(e) => setNote(e.target.value)}
-                                placeholder="Escribe tus observaciones aquí..."
-                                className="w-full h-40 p-3 border rounded-lg focus:border-purple-500 outline-none resize-none"
-                            ></textarea>
-                            {currentNote && <p className="mt-2 text-xs text-slate-500">Última nota: {currentNote.length > 50 ? currentNote.substring(0, 50) + '...' : currentNote}</p>}
-                        </div>
-                        <div className="p-4 bg-slate-50 border-t flex justify-end shrink-0">
-                            <button onClick={handleSubmit} disabled={isSaving} className="px-6 py-2 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700 flex items-center gap-2">
-                                {isSaving ? 'Guardando...' : "Guardar Nota"}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
-        // --- COMPONENTE: Modal de Ingreso de Producción (Operador) ---
-        const ProductionInputModal = ({ machine, rowLabel, rowId, currentValue, onClose, onSave }) => {
-            const [val, setVal] = useState(currentValue === 0 ? '' : currentValue);
-            const [isSaving, setIsSaving] = useState(false);
-            const inputRef = useRef(null);
-
-            useEffect(() => { 
-                if(inputRef.current) inputRef.current.focus(); 
-                if (window.lucide) window.lucide.createIcons();
-            }, []);
-
-            const handleSubmit = async (e) => {
+            const handleSubmit = (e) => {
                 e.preventDefault();
-                if (isSaving || (!val && val !== 0) || Number(val) < 0) return;
-
-                setIsSaving(true);
-                try {
-                    await onSave(rowId, machine.id, Number(val));
-                    onClose();
-                } catch (error) {
-                    console.error("Error al guardar en Firebase:", error);
-                    alert("¡ERROR DE GUARDADO! La base de datos rechazó la solicitud. Revisa la Consola.");
-                    setIsSaving(false);
+                if (pin === ADMIN_PIN) {
+                    onSuccess();
+                } else {
+                    setError(true);
+                    setPin('');
+                    setTimeout(() => setError(false), 2000);
                 }
             };
 
             return (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
-                        <div className="bg-green-600 p-4 text-white flex justify-between items-center">
-                            <h3 className="font-bold">Ingreso de Producción Real</h3>
-                            <button onClick={onClose} disabled={isSaving}><i data-lucide="x" className="w-6 h-6"></i></button>
-                        </div>
-                        <form onSubmit={handleSubmit} className="p-8 flex flex-col gap-6 items-center">
-                            <div className="text-center">
-                                <p className="text-sm font-bold text-slate-400 uppercase tracking-wide">{rowLabel}</p>
-                                <h2 className="text-4xl font-black text-green-700 mt-1">{machine.name}</h2>
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+                    <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm animate-fade-in" onClick={e => e.stopPropagation()}>
+                        <div className="text-center mb-6">
+                            <div className="w-12 h-12 bg-slate-900 rounded-full flex items-center justify-center mx-auto mb-3 text-white">
+                                <i data-lucide="lock" className="w-6 h-6"></i>
                             </div>
-                            
+                            <h3 className="text-lg font-bold">Acceso Administrativo</h3>
+                            <p className="text-xs text-slate-500">Ingresa el PIN maestro para ver gráficas y planificar</p>
+                        </div>
+                        <form onSubmit={handleSubmit} className="space-y-4">
                             <input 
-                                ref={inputRef} 
-                                type="number" 
-                                value={val} 
-                                onChange={(e) => setVal(e.target.value)}
-                                placeholder="0" 
-                                className="w-full text-center text-6xl font-black text-slate-800 border-b-4 border-green-500 focus:border-green-700 outline-none bg-transparent" 
-                                disabled={isSaving}
+                                type="password" 
+                                autoFocus
+                                className={`w-full text-center text-3xl font-mono p-3 border-2 rounded-xl outline-none transition-colors ${error ? 'border-red-500 bg-red-50' : 'border-slate-200 focus:border-blue-500'}`}
+                                placeholder="----"
+                                maxLength={4}
+                                value={pin}
+                                onChange={e => setPin(e.target.value)}
                             />
-                            
-                            <button 
-                                type="submit" 
-                                disabled={isSaving}
-                                className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg flex items-center justify-center gap-2
-                                    ${isSaving ? 'bg-slate-400 cursor-not-allowed text-white' : 'bg-green-600 hover:bg-green-700 text-white'}
-                                `}
-                            >
-                                {isSaving ? (
-                                    <><i data-lucide="loader-2" className="spinner w-6 h-6"></i> Guardando...</>
-                                ) : (
-                                    "Guardar Producción"
-                                )}
+                            {error && <p className="text-red-500 text-xs text-center font-bold">PIN Incorrecto</p>}
+                            <button type="submit" className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-slate-800 transition">
+                                ACCEDER
                             </button>
                         </form>
                     </div>
@@ -325,497 +146,376 @@
             );
         };
 
-        // --- DASHBOARD VIEW (ADMIN/COMMENTATOR) ---
-        const DashboardView = ({ user, data, handleSaveNote, machineIds, rows }) => {
-            const [expandedMachine, setExpandedMachine] = useState(null);
-            const [activeTab, setActiveTab] = useState('data');
-            const [calcModal, setCalcModal] = useState(null);
-            const [notesModal, setNotesModal] = useState(null);
+        // Componente de Gráficas Simple (CSS puro para no cargar librerías pesadas)
+        const StatsDashboard = ({ data, onClose }) => {
+            // Calcular totales
+            const totals = useMemo(() => {
+                const machineTotals = {};
+                let globalTotal = 0;
+                let globalTarget = 0;
 
-            useEffect(() => { if (window.lucide) window.lucide.createIcons(); });
+                MACHINES.forEach(m => {
+                    let mTotal = 0;
+                    let mTarget = 0;
+                    ALL_ROWS.forEach(row => {
+                        const cell = data[row]?.[m.id];
+                        if (cell) {
+                            mTotal += (cell.actual || 0);
+                            // Estimacion simple de meta si existe plan
+                            if (cell.plan_time_min) {
+                                mTarget += ((24 * 60) / cell.plan_time_min); 
+                            }
+                        }
+                    });
+                    machineTotals[m.id] = { total: mTotal, target: mTarget };
+                    globalTotal += mTotal;
+                    globalTarget += mTarget;
+                });
+                
+                // Ordenar máquinas por producción total
+                const sortedMachines = MACHINES.sort((a, b) => machineTotals[b.id].total - machineTotals[a.id].total);
+                
+                return { machineTotals, globalTotal, globalTarget, sortedMachines };
+            }, [data]);
 
-            const tabClasses = (tab) => `px-4 py-2 text-sm font-bold transition-colors rounded-t-lg ${
-                activeTab === tab ? 'bg-white text-blue-700 border-t border-x' : 'text-slate-500 hover:text-slate-700'
-            }`;
+            const maxVal = Math.max(...totals.sortedMachines.map(m => totals.machineTotals[m.id].total));
 
-            const calculateSimpleTotal = (machineId) => {
-                return rows.reduce((total, row) => total + (data[row.id]?.[machineId]?.actual || 0), 0);
+            return (
+                <div className="fixed inset-0 bg-white z-50 overflow-auto animate-fade-in">
+                    <div className="max-w-5xl mx-auto p-6">
+                        <div className="flex justify-between items-center mb-8 border-b pb-4">
+                            <div>
+                                <h2 className="text-2xl font-bold text-slate-900">Dashboard de Producción</h2>
+                                <p className="text-slate-500 text-sm">Análisis de rendimiento global</p>
+                            </div>
+                            <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full"><i data-lucide="x" className="w-6 h-6"></i></button>
+                        </div>
+
+                        {/* KPIs Globales */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                            <div className="bg-blue-600 text-white p-5 rounded-2xl shadow-lg shadow-blue-200">
+                                <div className="text-blue-100 text-sm font-medium mb-1">Producción Total</div>
+                                <div className="text-3xl font-black">{totals.globalTotal.toLocaleString()} <span className="text-lg font-normal opacity-80">pzas</span></div>
+                            </div>
+                            <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
+                                <div className="text-slate-500 text-sm font-medium mb-1">Top Máquina</div>
+                                <div className="text-2xl font-bold text-slate-800">{totals.sortedMachines[0]?.name}</div>
+                                <div className="text-sm text-green-600 font-bold">{totals.machineTotals[totals.sortedMachines[0]?.id].total.toLocaleString()} pzas</div>
+                            </div>
+                            <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
+                                <div className="text-slate-500 text-sm font-medium mb-1">Eficiencia Est.</div>
+                                <div className="text-2xl font-bold text-slate-800">
+                                    {totals.globalTarget > 0 ? ((totals.globalTotal / totals.globalTarget) * 100).toFixed(1) : 0}%
+                                </div>
+                                <div className="w-full bg-slate-100 h-2 mt-2 rounded-full overflow-hidden">
+                                    <div className="bg-green-500 h-full" style={{ width: `${Math.min(100, (totals.globalTotal / (totals.globalTarget || 1)) * 100)}%` }}></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Gráfica de Barras por Máquina */}
+                        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                            <h3 className="font-bold text-slate-800 mb-6">Producción Acumulada por Máquina</h3>
+                            <div className="space-y-4">
+                                {totals.sortedMachines.map(m => {
+                                    const val = totals.machineTotals[m.id].total;
+                                    const percent = maxVal > 0 ? (val / maxVal) * 100 : 0;
+                                    return (
+                                        <div key={m.id} className="flex items-center gap-4">
+                                            <div className="w-16 text-xs font-bold text-slate-600 text-right">{m.name.replace('MAQ ','M')}</div>
+                                            <div className="flex-1 h-8 bg-slate-50 rounded-lg overflow-hidden relative">
+                                                <div 
+                                                    className="h-full bg-slate-800 rounded-r-lg flex items-center px-2 transition-all duration-500" 
+                                                    style={{ width: `${percent}%` }}
+                                                >
+                                                </div>
+                                                <span className="absolute left-2 top-0 bottom-0 flex items-center text-xs text-slate-500 font-medium mix-blend-difference text-white pl-2">
+                                                    {val.toLocaleString()}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const PlanningModal = ({ machine, rowId, currentData, onClose, onSave }) => {
+            const [model, setModel] = useState(currentData?.derivedPlan?.plan_model || '');
+            const [targetQty, setTargetQty] = useState(currentData?.derivedPlan?.plan_target_qty || '');
+            const [timeMin, setTimeMin] = useState(currentData?.derivedPlan?.plan_time_min || '');
+            const [hours, setHours] = useState(currentData?.derivedPlan?.plan_hours || 24);
+
+            const handleSave = () => {
+                const data = {
+                    plan_model: model || null,
+                    plan_target_qty: Number(targetQty) || null,
+                    plan_time_min: Number(timeMin) || null,
+                    plan_hours: Number(hours) || null,
+                };
+                onSave(rowId, machine.id, data);
+                onClose();
             };
 
-            const DashboardTable = () => (
-                <div className="overflow-x-auto custom-scrollbar pb-2 pt-1">
-                    {rows.length === 0 && (
-                        <div className="p-8 text-center text-slate-500">
-                            <i data-lucide="calendar-off" className="w-8 h-8 mx-auto mb-2"></i>
-                            <p>No hay días cargados en la vista actual.</p>
-                        </div>
-                    )}
-                    {rows.length > 0 && (
-                        <table className="w-full border-collapse">
-                            <thead>
-                                <tr className="bg-slate-50 border-b">
-                                    <th className="sticky left-0 z-10 bg-slate-50 p-3 min-w-[140px] border-r text-left shadow-[2px_0_5px_rgba(0,0,0,0.05)] text-xs font-bold text-slate-400">FECHA</th>
-                                    {machineIds.map(mId => {
-                                        const m = MACHINES.find(mach => mach.id === mId);
-                                        const isExpanded = expandedMachine === mId;
-                                        return (
-                                            <th key={mId} className={`p-0 border-r align-top transition-all min-w-[120px]`}>
-                                                <button onClick={() => setExpandedMachine(isExpanded ? null : mId)} className={`w-full h-full p-2 flex flex-col items-center gap-1 text-center ${isExpanded ? 'bg-blue-50' : 'hover:bg-slate-100'}`}>
-                                                    <MachineIconImage />
-                                                    <span className="text-sm font-bold text-blue-800">{m.name.replace('MAQ ','')}</span>
-                                                    {isExpanded && <span className="text-[10px] text-slate-500 leading-tight">{m.type}</span>}
-                                                </button>
-                                            </th>
-                                        );
-                                    })}
-                                    <th className="sticky right-0 bg-slate-50 p-3 min-w-[80px] border-l shadow-[-2px_0_5px_rgba(0,0,0,0.05)] text-center text-xs font-bold text-slate-500">TOTAL</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {rows.map((rowObj, idx) => {
-                                    const { id: rowId, label: rowLabel } = rowObj;
-                                    const rowData = data[rowId] || {};
-                                    const totalRow = machineIds.reduce((acc, mId) => acc + (rowData[mId]?.actual || 0), 0);
-
-                                    return (
-                                        <tr key={rowId} className={`border-b border-slate-100 ${idx%2===0 ? 'bg-white' : 'bg-slate-50/50'}`}>
-                                            <td className="sticky left-0 z-10 bg-inherit p-2 border-r font-medium text-sm text-slate-600 shadow-[2px_0_5px_rgba(0,0,0,0.05)]">{rowLabel}</td>
-                                            {machineIds.map(mId => {
-                                                const m = MACHINES.find(mach => mach.id === mId);
-                                                const mData = rowData[mId] || {};
-                                                const actualQty = mData.actual || 0;
-                                                const note = mData.notes; 
-                                                const isExpanded = expandedMachine === mId;
-
-                                                return (
-                                                    <td key={mId} className={`p-0 border-r relative transition-all ${isExpanded ? 'bg-blue-50/20' : ''}`}>
-                                                        <div className="flex flex-col items-center justify-between h-full min-h-[60px] p-2">
-                                                            <div className="flex justify-between w-full">
-                                                                <button 
-                                                                    onClick={() => setCalcModal({ machineId: mId, rowId, rowLabel, val: actualQty })}
-                                                                    className={`font-black text-2xl p-1 rounded hover:bg-black/10 transition-colors ${actualQty > 0 ? 'text-blue-900' : 'text-slate-300'}`}
-                                                                >
-                                                                    {actualQty > 0 ? actualQty : '-'}
-                                                                </button>
-                                                                <button 
-                                                                    onClick={() => setNotesModal({ machineId: mId, rowId, rowLabel, note })}
-                                                                    className={`p-1 rounded ${note ? 'text-purple-600 hover:text-purple-800' : 'text-slate-400 hover:text-purple-600'}`}
-                                                                    title={note ? `Nota: ${note}` : 'Dejar Nota'}
-                                                                >
-                                                                    <i data-lucide={note ? 'message-circle' : 'message-circle-plus'} className="w-4 h-4"></i>
-                                                                </button>
-                                                            </div>
-                                                            {isExpanded && (
-                                                                <div className="text-[10px] mt-1 text-slate-500">
-                                                                    <p>Total: {calculateSimpleTotal(mId)} pzas</p>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                );
-                                            })}
-                                            <td className="sticky right-0 bg-slate-50 border-l p-2 text-center font-black text-blue-600 shadow-[-2px_0_5px_rgba(0,0,0,0.05)]">{totalRow.toLocaleString()}</td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    )}
-                </div>
-            );
-
-            // Componente de Gráfico (Placeholder)
-            const GraphView = () => (
-                <div className="p-8 bg-white h-full flex items-center justify-center flex-col">
-                    <i data-lucide="bar-chart-3" className="w-12 h-12 text-blue-400 mb-4"></i>
-                    <p className="text-xl font-bold text-slate-600">Gráfico de Producción por Día</p>
-                    <p className="text-sm text-slate-400">Aquí se mostraría la visualización de los datos (e.g., barras o líneas) con D3.js.</p>
-                </div>
-            );
-
-            // Componente de Calendario (Placeholder)
-            const CalendarView = () => (
-                <div className="p-8 bg-white h-full flex items-center justify-center flex-col">
-                    <i data-lucide="calendar" className="w-12 h-12 text-green-400 mb-4"></i>
-                    <p className="text-xl font-bold text-slate-600">Vista de Calendario</p>
-                    <p className="text-sm text-slate-400">Se podría mostrar un calendario mensual con los totales de producción diarios.</p>
-                </div>
-            );
-
             return (
-                <div className="h-full flex flex-col bg-slate-100">
-                    {calcModal && <AdminCalcModal 
-                        machine={MACHINES.find(m => m.id === calcModal.machineId)} 
-                        rowLabel={calcModal.rowLabel}
-                        currentValue={calcModal.val}
-                        onClose={() => setCalcModal(null)}
-                    />}
-                    
-                    {notesModal && <NotesModal 
-                        user={user}
-                        machine={MACHINES.find(m => m.id === notesModal.machineId)} 
-                        rowLabel={notesModal.rowLabel}
-                        rowId={notesModal.rowId}
-                        currentNote={notesModal.note}
-                        onClose={() => setNotesModal(null)}
-                        onSave={handleSaveNote}
-                    />}
-
-                    <div className="p-2 border-b bg-slate-100 flex gap-2 shrink-0">
-                        <button onClick={() => setActiveTab('data')} className={tabClasses('data')}><i data-lucide="table" className="w-4 h-4 inline mr-1"></i> Tabla de Datos</button>
-                        <button onClick={() => setActiveTab('graph')} className={tabClasses('graph')}><i data-lucide="bar-chart-3" className="w-4 h-4 inline mr-1"></i> Gráfico</button>
-                        <button onClick={() => setActiveTab('calendar')} className={tabClasses('calendar')}><i data-lucide="calendar" className="w-4 h-4 inline mr-1"></i> Calendario</button>
-                    </div>
-
-                    <div className="flex-1 overflow-auto bg-white rounded-b-xl shadow border">
-                        {activeTab === 'data' && <DashboardTable />}
-                        {activeTab === 'graph' && <GraphView />}
-                        {activeTab === 'calendar' && <CalendarView />}
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-fade-in" onClick={e => e.stopPropagation()}>
+                        <div className="p-4 border-b bg-slate-50 rounded-t-2xl flex justify-between items-center">
+                            <h3 className="font-bold">Planificar: {machine.name}</h3>
+                            <button onClick={onClose}><i data-lucide="x" className="w-5 h-5"></i></button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <label className="block text-xs font-bold text-slate-500">
+                                    MODELO
+                                    <input type="text" value={model} onChange={(e) => setModel(e.target.value)} className="mt-1 w-full p-2 border rounded-lg text-slate-800 text-sm" placeholder="Ej: B001" />
+                                </label>
+                                <label className="block text-xs font-bold text-slate-500">
+                                    META TOTAL
+                                    <input type="number" value={targetQty} onChange={(e) => setTargetQty(e.target.value)} className="mt-1 w-full p-2 border rounded-lg text-slate-800 text-sm" />
+                                </label>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <label className="block text-xs font-bold text-slate-500">
+                                    MIN/PIEZA
+                                    <input type="number" value={timeMin} onChange={(e) => setTimeMin(e.target.value)} className="mt-1 w-full p-2 border rounded-lg text-slate-800 text-sm" />
+                                </label>
+                                <label className="block text-xs font-bold text-slate-500">
+                                    HORAS TURNO
+                                    <select value={hours} onChange={(e) => setHours(e.target.value)} className="mt-1 w-full p-2 border rounded-lg text-slate-800 text-sm">
+                                        <option value={12}>12 Horas</option>
+                                        <option value={24}>24 Horas</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <button onClick={handleSave} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 mt-4">Guardar Plan</button>
+                        </div>
                     </div>
                 </div>
             );
         };
 
-        // --- OPERATOR VIEW (OPERATOR) ---
-        const OperatorView = ({ user, data, handleSaveActual, machineIds, rows }) => {
-            const [prodModal, setProdModal] = useState(null);
+        const App = () => {
+            const [productionData, setProductionData] = useState({});
+            const [loading, setLoading] = useState(true);
+            const [expandedMachineId, setExpandedMachineId] = useState(null);
             
+            // Estados de Admin
+            const [isAdmin, setIsAdmin] = useState(false);
+            const [showAdminLogin, setShowAdminLogin] = useState(false);
+            const [showStats, setShowStats] = useState(false);
+            const [planningModal, setPlanningModal] = useState(null);
+
+            // Cargar Iconos
             useEffect(() => { if (window.lucide) window.lucide.createIcons(); });
 
-            return (
-                <div className="h-full flex flex-col p-4 bg-slate-50 rounded-xl shadow border">
-                    {prodModal && <ProductionInputModal 
-                        machine={MACHINES.find(m => m.id === prodModal.machineId)}
-                        rowLabel={prodModal.rowLabel}
-                        rowId={prodModal.rowId}
-                        currentValue={prodModal.val}
-                        onClose={() => setProdModal(null)}
-                        onSave={handleSaveActual}
-                    />}
-                    
-                    <h2 className="text-2xl font-bold text-slate-800 mb-4">Ingreso Rápido de Producción</h2>
-                    <p className="text-sm text-slate-500 mb-6">Seleccione el día y la máquina para ingresar la cantidad producida.</p>
-
-                    <div className="flex-1 overflow-auto bg-white rounded-xl shadow border">
-                        <div className="overflow-x-auto custom-scrollbar">
-                            {rows.length === 0 && (
-                                <div className="p-8 text-center text-slate-500">
-                                    <i data-lucide="calendar-off" className="w-8 h-8 mx-auto mb-2"></i>
-                                    <p>No hay días cargados en la vista actual.</p>
-                                </div>
-                            )}
-                            {rows.length > 0 && (
-                                <table className="w-full border-collapse">
-                                    <thead>
-                                        <tr className="bg-green-50/50 border-b">
-                                            <th className="sticky left-0 z-10 bg-green-50/50 p-3 min-w-[140px] border-r text-left shadow-[2px_0_5px_rgba(0,0,0,0.05)] text-xs font-bold text-green-700">FECHA</th>
-                                            {machineIds.map(mId => {
-                                                const m = MACHINES.find(mach => mach.id === mId);
-                                                return (
-                                                    <th key={mId} className={`p-2 border-r text-center`}>
-                                                        <div className="flex flex-col items-center gap-1">
-                                                            <MachineIconImage />
-                                                            <span className="text-sm font-bold text-green-800">{m.name.replace('MAQ ','')}</span>
-                                                        </div>
-                                                    </th>
-                                                );
-                                            })}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {rows.map((rowObj, idx) => {
-                                            const { id: rowId, label: rowLabel } = rowObj;
-                                            const rowData = data[rowId] || {};
-
-                                            return (
-                                                <tr key={rowId} className={`border-b border-slate-100 ${idx%2===0 ? 'bg-white' : 'bg-slate-50/50'}`}>
-                                                    <td className="sticky left-0 z-10 bg-inherit p-2 border-r font-medium text-sm text-slate-600 shadow-[2px_0_5px_rgba(0,0,0,0.05)]">{rowLabel}</td>
-                                                    {machineIds.map(mId => {
-                                                        const mData = rowData[mId] || {};
-                                                        const actualQty = mData.actual || 0;
-
-                                                        return (
-                                                            <td key={mId} className={`p-0 border-r relative`}>
-                                                                <button 
-                                                                    onClick={() => setProdModal({ machineId: mId, rowId, rowLabel, val: actualQty })}
-                                                                    className={`w-full h-full min-h-[50px] font-bold text-xl p-2 hover:bg-black/5 transition-colors ${actualQty > 0 ? 'text-green-800' : 'text-slate-300'}`}
-                                                                >
-                                                                    {actualQty > 0 ? actualQty.toLocaleString() : 'INGRESAR'}
-                                                                </button>
-                                                            </td>
-                                                        );
-                                                    })}
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
-        // --- APP PRINCIPAL ---
-        const App = () => {
-            const [user, setUser] = useState(null);
-            const [data, setData] = useState({});
-            const [loading, setLoading] = useState(true);
-            const [isAuthReady, setIsAuthReady] = useState(false);
-            const [showAllDays, setShowAllDays] = useState(false);
-
-            // Asegura que los iconos de Lucide se rendericen
-            useEffect(() => { 
-                if (window.lucide) window.lucide.createIcons(); 
-            }, [user, loading]); 
-
-            // 1. Manejar el estado de autenticación (Login/Logout)
+            // Auth Anónima (Siempre logueado en background para DB)
             useEffect(() => {
-                const unsubAuth = onAuthStateChanged(auth, (firebaseUser) => {
-                    if (firebaseUser) {
-                        // Usuario autenticado. Mapear el email a un rol
-                        const roleData = USERS_BY_EMAIL[firebaseUser.email] || { name: firebaseUser.displayName || firebaseUser.email, role: ROLES.OBSERVER };
-                        setUser({ ...roleData, email: firebaseUser.email, uid: firebaseUser.uid });
-                    } else {
-                        setUser(null);
-                    }
-                    setIsAuthReady(true);
+                signInAnonymously(auth).catch(console.error);
+                const unsubscribe = onSnapshot(collection(db, 'produccion_2025'), (snapshot) => {
+                    const data = {};
+                    snapshot.forEach((doc) => data[doc.id] = doc.data());
+                    setProductionData(data);
+                    setLoading(false);
                 });
-                return () => unsubAuth();
+                return () => unsubscribe();
             }, []);
 
-            // 2. Escuchar datos de Firestore (Solo después de que Auth esté listo)
-            useEffect(() => {
-                if (!isAuthReady || !user) {
-                    setLoading(true);
-                    return;
-                }
-                
-                // Si el usuario está listo y logueado, cargar los datos
-                const collectionRef = collection(db, 'produccion_2025');
-                const unsubDb = onSnapshot(collectionRef, (snap) => {
-                    const d = {};
-                    snap.forEach(doc => d[doc.id] = doc.data());
-                    setData(d);
-                    setLoading(false);
-                }, (error) => {
-                    console.error("Error al escuchar cambios de Firestore:", error);
-                    console.error("Error de conexión con la base de datos. Revise su conexión o permisos.");
-                    setLoading(false);
+            // --- LÓGICA DE PROCESAMIENTO (HERENCIA DE PLANES) ---
+            const processedData = useMemo(() => {
+                const rows = [];
+                const machineState = {}; 
+
+                ALL_ROWS.forEach((rowId, index) => {
+                    const rowData = {};
+                    MACHINES.forEach(machine => {
+                        const rawCell = productionData[rowId]?.[machine.id] || {};
+                        
+                        if (rawCell.plan_model) {
+                            machineState[machine.id] = {
+                                plan: { ...rawCell },
+                                accumulated: 0
+                            };
+                        }
+
+                        const activeState = machineState[machine.id];
+                        const activePlan = activeState ? activeState.plan : null;
+                        const actualQty = Number(rawCell.actual) || 0;
+                        
+                        if (activeState) activeState.accumulated += actualQty;
+
+                        let cellCalculations = {};
+                        if (activePlan) {
+                            const totalTarget = activePlan.plan_target_qty || 1;
+                            const totalProgressPercent = Math.min(100, ((activeState.accumulated) / totalTarget) * 100);
+                            
+                            // Calculo objetivo diario
+                            const mins = activePlan.plan_time_min || 0;
+                            const dailyTarget = mins > 0 ? Math.round(((activePlan.plan_hours || 24)*60)/mins) : 0;
+
+                            cellCalculations = {
+                                derivedPlan: activePlan,
+                                accumulatedOfPlan: activeState.accumulated,
+                                totalProgressPercent: totalProgressPercent.toFixed(1),
+                                dailyTarget
+                            };
+                        }
+
+                        rowData[machine.id] = { ...rawCell, ...cellCalculations };
+                    });
+                    rows.push({ rowId, machines: rowData });
                 });
-                return () => unsubDb();
-            }, [isAuthReady, user]);
+                return rows;
+            }, [productionData]);
 
-
-            // FUNCIÓN DE GUARDADO PARA OPERADORES (Guarda CANTIDAD ACTUAL)
-            const handleSaveActual = async (rowId, machineId, value) => {
-                const docRef = doc(db, 'produccion_2025', rowId);
-                let update = { 
-                    [`${machineId}.actual`]: value,
-                    [`${machineId}.updatedAt`]: Date.now(),
-                    [`${machineId}.updatedBy`]: user.name,
-                };
-
+            const handleUpdate = useCallback(async (rowId, machineId, newData) => {
                 try {
-                    await setDoc(docRef, update, { merge: true });
-                    console.log(`[SAVE ACTUAL] Cantidad ${value} guardada por ${user.name} en ${machineId} en ${rowId}`);
-                } catch (error) {
-                    console.error("[SAVE ACTUAL ERROR] Falló la escritura en Firebase.", error);
-                    throw error;
-                }
-            };
+                    const docRef = doc(db, 'produccion_2025', rowId);
+                    const payload = {};
+                    Object.keys(newData).forEach(key => {
+                        payload[`${machineId}.${key}`] = newData[key];
+                    });
+                    await setDoc(docRef, payload, { merge: true });
+                } catch (err) { console.error(err); }
+            }, []);
 
-            // FUNCIÓN DE GUARDADO PARA ADMIN/COMMENTATOR (Guarda NOTAS)
-            const handleSaveNote = async (rowId, machineId, value) => {
-                const docRef = doc(db, 'produccion_2025', rowId);
-                let update = { 
-                    [`${machineId}.notes`]: value,
-                    [`${machineId}.noteAuthor`]: user.name, // Registrar quién dejó la nota
-                    [`${machineId}.noteTimestamp`]: Date.now(),
-                };
+            if (loading) return <div className="h-screen flex items-center justify-center text-slate-400"><i data-lucide="loader-2" className="animate-spin w-8 h-8"></i></div>;
 
-                try {
-                    await setDoc(docRef, update, { merge: true });
-                    console.log(`[SAVE NOTE] Nota guardada por ${user.name} para ${machineId} en ${rowId}`);
-                } catch (error) {
-                    console.error("[SAVE NOTE ERROR] Falló la escritura de la nota.", error);
-                    throw error;
-                }
-            };
+            // Filtrar filas: Si NO es admin, solo mostrar semana actual. Si ES admin, mostrar todo.
+            const visibleRowsData = processedData.filter(row => isAdmin || CURRENT_WEEK_ROWS.includes(row.rowId));
 
-            const handleLogout = async () => {
-                try {
-                    await signOut(auth);
-                } catch (error) {
-                    console.error("Error al cerrar sesión:", error);
-                }
-            };
-
-
-            if (!isAuthReady) return <div className="h-screen flex items-center justify-center"><i data-lucide="loader-2" className="animate-spin w-10 h-10 text-blue-600"></i><span className="ml-3 font-medium">Iniciando sistema de autenticación...</span></div>;
-            if (!user) return <AuthScreen />;
-            if (loading) return <div className="h-screen flex items-center justify-center"><i data-lucide="loader-2" className="animate-spin w-10 h-10 text-blue-600"></i><span className="ml-3 font-medium">Cargando datos de producción...</span></div>;
-
-            const rowsToShow = (user.role === ROLES.ADMIN && showAllDays) ? ALL_ROWS : CURRENT_WEEK_ROWS;
-            const isViewer = VIEWER_ROLES.includes(user.role);
-
-            // Determinar qué vista mostrar según el rol
-            const CurrentView = isViewer ? DashboardView : OperatorView;
-            
             return (
-                <div className="h-screen flex flex-col bg-slate-100 overflow-hidden">
-                    <header className="bg-white shadow-md border-b p-3 flex justify-between items-center z-20 shrink-0">
-                        <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-lg text-white shadow-lg ${isViewer ? 'bg-blue-600' : 'bg-green-600'}`}><i data-lucide={isViewer ? "factory" : "gauge"} className="w-5 h-5"></i></div>
+                <div className="min-h-screen flex flex-col font-sans">
+                    {/* Modales */}
+                    {showAdminLogin && (
+                        <AdminAuthModal 
+                            onClose={() => setShowAdminLogin(false)} 
+                            onSuccess={() => { setIsAdmin(true); setShowAdminLogin(false); }} 
+                        />
+                    )}
+                    {showStats && <StatsDashboard data={productionData} onClose={() => setShowStats(false)} />}
+                    {planningModal && (
+                        <PlanningModal 
+                            machine={MACHINES.find(m => m.id === planningModal.machineId)}
+                            rowId={planningModal.rowId}
+                            currentData={planningModal.data}
+                            onClose={() => setPlanningModal(null)}
+                            onSave={handleUpdate}
+                        />
+                    )}
+
+                    {/* Header */}
+                    <header className="bg-white border-b border-slate-200 sticky top-0 z-30 px-4 py-3 shadow-sm flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                            <div className="bg-slate-800 text-white p-2 rounded-lg"><i data-lucide="factory" className="w-5 h-5"></i></div>
                             <div>
-                                <h1 className="font-bold text-slate-800 leading-tight">Control Cirineo 2025</h1>
-                                <p className="text-xs text-slate-500">
-                                    <span className="text-green-500 font-bold mr-1">✓ Autenticado</span>
-                                    Usuario: {user.name} | Rol: {user.role}
-                                    {user.role === ROLES.ADMIN && (
-                                        <button onClick={() => setShowAllDays(!showAllDays)} className="ml-2 text-blue-500 font-bold hover:underline">
-                                            ({showAllDays ? 'Ver Semana' : 'Ver Mes Completo'})
-                                        </button>
-                                    )}
-                                </p>
+                                <h1 className="font-bold text-slate-800 leading-tight text-sm md:text-base">CONTROL DE PRODUCCIÓN</h1>
+                                <p className="text-[10px] text-slate-400 font-bold tracking-wider">CIRINEO TEXTIL</p>
                             </div>
                         </div>
                         <div className="flex gap-2">
-                            <button onClick={handleLogout} className="bg-red-50 text-red-500 p-2 rounded-lg hover:bg-red-100" title="Cerrar Sesión"><i data-lucide="log-out" className="w-4 h-4"></i></button>
+                            {!isAdmin ? (
+                                <button onClick={() => setShowAdminLogin(true)} className="flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-bold transition">
+                                    <i data-lucide="lock" className="w-3 h-3"></i> Admin
+                                </button>
+                            ) : (
+                                <>
+                                    <button onClick={() => setShowStats(true)} className="flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-bold transition">
+                                        <i data-lucide="bar-chart-2" className="w-4 h-4"></i>
+                                        <span className="hidden md:inline">Gráficas</span>
+                                    </button>
+                                    <button onClick={() => setIsAdmin(false)} className="px-3 py-2 bg-red-50 text-red-500 hover:bg-red-100 rounded-lg text-xs font-bold transition">
+                                        Salir
+                                    </button>
+                                </>
+                            )}
                         </div>
                     </header>
-                    <main className="flex-1 overflow-hidden p-2">
-                        <CurrentView 
-                            user={user}
-                            data={data} 
-                            handleSaveActual={handleSaveActual}
-                            handleSaveNote={handleSaveNote}
-                            machineIds={MACHINES.map(m => m.id)}
-                            rows={rowsToShow}
-                        />
+
+                    {/* Grid Principal */}
+                    <main className="flex-1 overflow-auto p-2 md:p-4 custom-scrollbar">
+                        <div className="bg-white rounded-xl shadow border border-slate-200 overflow-hidden">
+                            <div className="overflow-x-auto custom-scrollbar">
+                                <table className="w-full border-collapse">
+                                    <thead>
+                                        <tr className="bg-slate-50 border-b border-slate-200 text-left">
+                                            <th className="sticky left-0 z-20 bg-slate-50 p-3 min-w-[120px] border-r border-slate-200 shadow-sm text-xs text-slate-500 font-bold uppercase tracking-wider">Fecha</th>
+                                            {MACHINES.map(m => (
+                                                <th key={m.id} className={`machine-col ${expandedMachineId === m.id ? 'expanded' : ''} p-2 border-r border-slate-100 align-top transition-all duration-300`}>
+                                                    <button onClick={() => setExpandedMachineId(expandedMachineId === m.id ? null : m.id)} className="w-full flex flex-col items-center gap-1 hover:bg-slate-100 rounded p-1 transition group">
+                                                        <div className="w-8 h-8 opacity-80 group-hover:opacity-100 transition"><MachineIconImage className="w-full h-full" /></div>
+                                                        <span className="text-[11px] font-black text-slate-700">{m.name.replace('MAQ ','M')}</span>
+                                                    </button>
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {visibleRowsData.map((row, idx) => (
+                                            <tr key={row.rowId} className={`border-b border-slate-100 hover:bg-slate-50 transition ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}`}>
+                                                <td className="sticky left-0 z-10 bg-inherit p-3 border-r border-slate-200 text-xs font-bold text-slate-600 shadow-sm whitespace-nowrap">
+                                                    {row.rowId}
+                                                </td>
+                                                {MACHINES.map(m => {
+                                                    const cell = row.machines[m.id];
+                                                    const hasPlan = !!cell.derivedPlan;
+                                                    const isExpanded = expandedMachineId === m.id;
+
+                                                    return (
+                                                        <td key={m.id} className={`p-1 border-r border-slate-100 relative machine-col ${isExpanded ? 'expanded' : ''} transition-all align-top`}>
+                                                            <div className="flex flex-col h-full gap-1">
+                                                                {/* Cabecera del Plan (Visible para todos, editable solo Admin) */}
+                                                                <div className={`rounded text-[10px] p-1 flex justify-between items-start min-h-[1.5rem] transition-colors ${hasPlan ? 'bg-indigo-50/60' : ''}`}>
+                                                                    {hasPlan && (
+                                                                        <div className="flex-1 overflow-hidden">
+                                                                            <div className="font-bold text-indigo-900 truncate" title={cell.derivedPlan.plan_model}>{cell.derivedPlan.plan_model}</div>
+                                                                            {/* Barra de progreso visual simple */}
+                                                                            <div className="mt-0.5 w-full bg-indigo-100 h-1 rounded-full overflow-hidden">
+                                                                                <div className="bg-indigo-500 h-full" style={{width: `${cell.totalProgressPercent}%`}}></div>
+                                                                            </div>
+                                                                            {/* Datos extra si está expandido o es Admin */}
+                                                                            {(isExpanded || isAdmin) && (
+                                                                                <div className="mt-1 text-[9px] text-slate-500 leading-tight">
+                                                                                    Meta Dia: <b>{cell.dailyTarget}</b><br/>
+                                                                                    {isAdmin && `Acum: ${cell.accumulatedOfPlan}`}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    )}
+                                                                    
+                                                                    {/* Botón Admin para Planificar */}
+                                                                    {isAdmin && (
+                                                                        <button 
+                                                                            onClick={() => setPlanningModal({ machineId: m.id, rowId: row.rowId, data: cell })}
+                                                                            className="ml-1 text-slate-300 hover:text-blue-600 transition"
+                                                                        >
+                                                                            <i data-lucide="plus-circle" className="w-3 h-3"></i>
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+
+                                                                {/* Input Principal - SIEMPRE HABILITADO */}
+                                                                <input 
+                                                                    type="number" 
+                                                                    value={cell.actual ?? ''}
+                                                                    placeholder="-"
+                                                                    className={`w-full text-center font-bold text-sm bg-transparent outline-none py-2 rounded border border-transparent focus:bg-white focus:border-blue-300 focus:shadow-sm transition ${cell.actual > 0 ? 'text-slate-800' : 'text-slate-300'}`}
+                                                                    onChange={(e) => handleUpdate(row.rowId, m.id, { actual: Number(e.target.value) })}
+                                                                />
+                                                            </div>
+                                                        </td>
+                                                    );
+                                                })}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </main>
-                </div>
-            );
-        };
-
-        const AuthScreen = () => {
-            const [email, setEmail] = useState('');
-            const [password, setPassword] = useState('');
-            const [isRegistering, setIsRegistering] = useState(false);
-            const [loading, setLoading] = useState(false);
-            const [error, setError] = useState('');
-
-            useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, []);
-
-            const handleSubmit = async (e) => {
-                e.preventDefault();
-                setError('');
-                setLoading(true);
-
-                if (!email || !password) {
-                    setError("Ingrese correo y contraseña.");
-                    setLoading(false);
-                    return;
-                }
-
-                try {
-                    if (isRegistering) {
-                        await createUserWithEmailAndPassword(auth, email, password);
-                    } else {
-                        await signInWithEmailAndPassword(auth, email, password);
-                    }
-                } catch (err) {
-                    let errorMessage = 'Error de autenticación. Verifique sus credenciales.';
-                    if (err.code) {
-                        switch(err.code) {
-                            case 'auth/invalid-email': errorMessage = 'Formato de correo inválido.'; break;
-                            case 'auth/user-not-found': errorMessage = 'Usuario no encontrado.'; break;
-                            case 'auth/wrong-password': errorMessage = 'Contraseña incorrecta.'; break;
-                            case 'auth/weak-password': errorMessage = 'Contraseña débil (mínimo 6 caracteres).'; break;
-                            case 'auth/email-already-in-use': errorMessage = 'Este correo ya está registrado.'; break;
-                            default: console.error(err);
-                        }
-                    }
-                    setError(errorMessage);
-                } finally {
-                    setLoading(false);
-                }
-            };
-            
-            // NUEVA FUNCIÓN PARA GOOGLE SIGN-IN
-            const handleGoogleSignIn = async () => {
-                setError('');
-                setLoading(true);
-                const provider = new GoogleAuthProvider();
-                try {
-                    await signInWithPopup(auth, provider);
-                    // No necesitamos manejar el éxito aquí, onAuthStateChanged lo manejará.
-                } catch (err) {
-                    // Manejar errores de pop-up, cierre de ventana, etc.
-                    if (err.code !== 'auth/popup-closed-by-user') {
-                         setError("No se pudo iniciar sesión con Google. Revise la consola.");
-                         console.error("Error de autenticación con Google:", err);
-                    }
-                } finally {
-                    setLoading(false);
-                }
-            };
-
-            return (
-                <div className="flex items-center justify-center h-screen bg-slate-100">
-                    <div className="bg-white p-8 rounded-2xl shadow-xl w-80 text-center">
-                        <div className="bg-blue-600 w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-4 text-white">
-                            <i data-lucide={isRegistering ? "user-plus" : "log-in"} className="w-6 h-6"></i>
-                        </div>
-                        <h2 className="text-xl font-bold text-slate-800 mb-6">{isRegistering ? 'Registro de Usuario' : 'Iniciar Sesión'}</h2>
-                        <p className="text-xs text-slate-400 mb-4">Usuarios de prueba: {Object.keys(USERS_BY_EMAIL).join(', ')}</p>
-
-                        {/* Botón de Google Sign-In */}
-                        <button onClick={handleGoogleSignIn} disabled={loading}
-                            className={`w-full py-3 rounded-xl font-bold text-slate-700 border-2 border-slate-200 flex items-center justify-center gap-2 
-                                mb-4 transition duration-150 ease-in-out hover:bg-slate-50
-                                ${loading ? 'opacity-60 cursor-not-allowed' : ''}
-                            `}>
-                            <svg className="google-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-                                <path fill="#FFC107" d="M43.61 20.08c0-.68-.05-1.35-.15-2.01h-21.46v4.06h12.55c-.55 3.19-2.28 4.79-4.83 6.46-3.13 2.05-7.1 2.94-11.23 2.94-8.54 0-15.5-6.84-15.5-15.24s6.96-15.24 15.5-15.24c4.6 0 8.04 1.93 10.46 4.19l3.2-3.19c-3.72-3.41-8.59-5.46-13.66-5.46-11.66 0-21.13 9.47-21.13 21.13s9.47 21.13 21.13 21.13c11.3 0 20.7-7.9 20.7-19.78 0-1.14-.13-2.25-.33-3.34z"/>
-                                <path fill="#FF3D00" d="M5.13 24.3c0-2.34.42-4.57 1.2-6.6l-4.4-3.4c-1.92 4.12-2.93 8.78-2.93 13.59s1.01 9.47 2.93 13.59l4.4-3.4c-.78-2.03-1.2-4.26-1.2-6.6z"/>
-                                <path fill="#4CAF50" d="M22.01 44.47c4.63 0 8.87-1.46 12.3-3.99l-3.2-3.19c-2.42 1.66-5.45 2.67-9.1 2.67-7.7 0-14.13-5.87-15.17-13.56l-4.4 3.4c1.04 6.78 6.4 12.06 12.7 14.07z"/>
-                                <path fill="#1976D2" d="M43.61 20.08c0-.68-.05-1.35-.15-2.01h-21.46v4.06h12.55c-.27 1.54-1.07 2.97-2.26 4.14l-3.2 3.19c4.32 4.02 10.5 4.87 15.56 0 2.45-2.26 4.18-4.99 4.82-7.86z"/>
-                            </svg>
-                            Iniciar con Google
-                        </button>
-                        
-                        <div className="relative flex items-center justify-center my-4">
-                            <div className="absolute w-full border-t border-slate-200"></div>
-                            <span className="bg-white px-3 text-sm text-slate-400 z-10">O</span>
-                        </div>
-
-
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                                placeholder="Correo Electrónico" className="w-full text-md p-3 border rounded-xl" disabled={loading} />
-                            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-                                placeholder="Contraseña" className="w-full text-md p-3 border rounded-xl" disabled={loading} />
-                            
-                            {error && <p className="text-red-500 text-sm">{error}</p>}
-                            
-                            <button type="submit" disabled={loading}
-                                className={`w-full py-3 rounded-xl font-bold text-white flex items-center justify-center gap-2 
-                                    ${loading ? 'bg-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}
-                                `}>
-                                {loading ? (
-                                    <><i data-lucide="loader-2" className="spinner w-5 h-5"></i> Procesando...</>
-                                ) : (
-                                    isRegistering ? "Registrarme" : "Iniciar Sesión con Email"
-                                )}
-                            </button>
-                        </form>
-                        
-                        <button onClick={() => setIsRegistering(!isRegistering)} className="mt-4 text-sm text-blue-600 hover:underline">
-                            {isRegistering ? "¿Ya tiene cuenta? Inicie sesión." : "¿Necesita una cuenta? Registrarse."}
-                        </button>
-                    </div>
                 </div>
             );
         };
@@ -825,4 +525,3 @@
     </script>
 </body>
 </html>
-
