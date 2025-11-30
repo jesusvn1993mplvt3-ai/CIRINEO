@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Control de Producción - Cirineo 2025/2026</title>
+    <title>Control de Producción - Cirineo 2025</title>
     
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
@@ -13,35 +13,36 @@
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     
     <style>
         .custom-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
         input[type=number]::-webkit-inner-spin-button, 
         input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         
         .machine-col { min-width: 100px; width: 100px; }
         .machine-col.expanded { min-width: 200px; width: 200px; }
-        
-        /* Animaciones */
+
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
     </style>
 </head>
-<body class="bg-slate-100 text-slate-800">
+<body class="bg-slate-100 text-slate-800 font-sans">
 
     <div id="root"></div>
 
-    <script type="text/babel" data-type="module">
-        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-        import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-        import { getFirestore, collection, doc, setDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
-
+    <script type="text/babel">
+        // --- INICIALIZACIÓN SEGURA ---
         const { useState, useEffect, useMemo, useCallback } = React;
 
-        // --- FIREBASE CONFIG ---
+        // Configuración Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyBqHgV4vDat1-VmZfKbiPg7nuiX-ROcexw",
             authDomain: "cirineo-cec21.firebaseapp.com",
@@ -52,14 +53,18 @@
             measurementId: "G-B7YLM78RVW"
         };
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+        // Inicializar Firebase (Verificación para evitar doble carga)
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const auth = firebase.auth();
+        const db = firebase.firestore();
 
         // --- CONSTANTES ---
         const ADMIN_PIN = "1352";
         
-        const MACHINES = [
+        // Copia de máquinas para evitar mutación
+        const RAW_MACHINES = [
             { id: 'm35', name: 'MAQ 35', type: 'SANTONI SM8 TOP 2V', diam: 16 },
             { id: 'm39', name: 'MAQ 39', type: 'SANTONI SM8 TOP 2V', diam: 16 },
             { id: 'm40', name: 'MAQ 40', type: 'SANTONI SM8 TOP 2V', diam: 16 },
@@ -88,7 +93,6 @@
             'JUEVES 27', 'VIERNES 28', 'SABADO 29', 'DOMINGO 30'
         ];
 
-        // Semana por defecto para operadores
         const CURRENT_WEEK_ROWS = ALL_ROWS.slice(0, 7); 
 
         // --- COMPONENTES ---
@@ -100,7 +104,6 @@
             return <img src={imageUrl} className={className + " object-contain"} onError={() => setHasError(true)} />;
         };
 
-        // Modal para Validar PIN Admin
         const AdminAuthModal = ({ onClose, onSuccess }) => {
             const [pin, setPin] = useState('');
             const [error, setError] = useState(false);
@@ -124,7 +127,7 @@
                                 <i data-lucide="lock" className="w-6 h-6"></i>
                             </div>
                             <h3 className="text-lg font-bold">Acceso Administrativo</h3>
-                            <p className="text-xs text-slate-500">Ingresa el PIN maestro para ver gráficas y planificar</p>
+                            <p className="text-xs text-slate-500">Ingresa el PIN maestro</p>
                         </div>
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <input 
@@ -146,23 +149,21 @@
             );
         };
 
-        // Componente de Gráficas Simple (CSS puro para no cargar librerías pesadas)
         const StatsDashboard = ({ data, onClose }) => {
-            // Calcular totales
-            const totals = useMemo(() => {
+            const stats = useMemo(() => {
                 const machineTotals = {};
                 let globalTotal = 0;
                 let globalTarget = 0;
-
-                MACHINES.forEach(m => {
+                
+                // Usamos RAW_MACHINES para iterar
+                RAW_MACHINES.forEach(m => {
                     let mTotal = 0;
                     let mTarget = 0;
                     ALL_ROWS.forEach(row => {
                         const cell = data[row]?.[m.id];
                         if (cell) {
                             mTotal += (cell.actual || 0);
-                            // Estimacion simple de meta si existe plan
-                            if (cell.plan_time_min) {
+                            if (cell.plan_time_min > 0) {
                                 mTarget += ((24 * 60) / cell.plan_time_min); 
                             }
                         }
@@ -171,54 +172,56 @@
                     globalTotal += mTotal;
                     globalTarget += mTarget;
                 });
-                
-                // Ordenar máquinas por producción total
-                const sortedMachines = MACHINES.sort((a, b) => machineTotals[b.id].total - machineTotals[a.id].total);
-                
-                return { machineTotals, globalTotal, globalTarget, sortedMachines };
+
+                // Creamos copia para ordenar
+                const sorted = [...RAW_MACHINES].sort((a, b) => 
+                    machineTotals[b.id].total - machineTotals[a.id].total
+                );
+
+                return { machineTotals, globalTotal, globalTarget, sorted };
             }, [data]);
 
-            const maxVal = Math.max(...totals.sortedMachines.map(m => totals.machineTotals[m.id].total));
+            const maxVal = stats.sorted.length > 0 ? stats.machineTotals[stats.sorted[0].id].total : 0;
 
             return (
-                <div className="fixed inset-0 bg-white z-50 overflow-auto animate-fade-in">
-                    <div className="max-w-5xl mx-auto p-6">
-                        <div className="flex justify-between items-center mb-8 border-b pb-4">
+                <div className="fixed inset-0 bg-white z-50 overflow-auto animate-fade-in flex flex-col">
+                    <div className="max-w-5xl w-full mx-auto p-6 flex-1">
+                        <div className="flex justify-between items-center mb-6 border-b pb-4">
                             <div>
-                                <h2 className="text-2xl font-bold text-slate-900">Dashboard de Producción</h2>
-                                <p className="text-slate-500 text-sm">Análisis de rendimiento global</p>
+                                <h2 className="text-2xl font-bold text-slate-900">Dashboard</h2>
+                                <p className="text-slate-500 text-sm">Rendimiento en tiempo real</p>
                             </div>
                             <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full"><i data-lucide="x" className="w-6 h-6"></i></button>
                         </div>
 
-                        {/* KPIs Globales */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
                             <div className="bg-blue-600 text-white p-5 rounded-2xl shadow-lg shadow-blue-200">
                                 <div className="text-blue-100 text-sm font-medium mb-1">Producción Total</div>
-                                <div className="text-3xl font-black">{totals.globalTotal.toLocaleString()} <span className="text-lg font-normal opacity-80">pzas</span></div>
+                                <div className="text-3xl font-black">{stats.globalTotal.toLocaleString()} <span className="text-lg font-normal opacity-80">pzas</span></div>
                             </div>
                             <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
-                                <div className="text-slate-500 text-sm font-medium mb-1">Top Máquina</div>
-                                <div className="text-2xl font-bold text-slate-800">{totals.sortedMachines[0]?.name}</div>
-                                <div className="text-sm text-green-600 font-bold">{totals.machineTotals[totals.sortedMachines[0]?.id].total.toLocaleString()} pzas</div>
+                                <div className="text-slate-500 text-sm font-medium mb-1">Mejor Máquina</div>
+                                <div className="text-2xl font-bold text-slate-800">{stats.sorted[0]?.name || '-'}</div>
+                                <div className="text-sm text-green-600 font-bold">
+                                    {stats.sorted[0] ? stats.machineTotals[stats.sorted[0].id].total.toLocaleString() : 0} pzas
+                                </div>
                             </div>
                             <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
-                                <div className="text-slate-500 text-sm font-medium mb-1">Eficiencia Est.</div>
+                                <div className="text-slate-500 text-sm font-medium mb-1">Cumplimiento Global</div>
                                 <div className="text-2xl font-bold text-slate-800">
-                                    {totals.globalTarget > 0 ? ((totals.globalTotal / totals.globalTarget) * 100).toFixed(1) : 0}%
+                                    {stats.globalTarget > 0 ? ((stats.globalTotal / stats.globalTarget) * 100).toFixed(1) : 0}%
                                 </div>
                                 <div className="w-full bg-slate-100 h-2 mt-2 rounded-full overflow-hidden">
-                                    <div className="bg-green-500 h-full" style={{ width: `${Math.min(100, (totals.globalTotal / (totals.globalTarget || 1)) * 100)}%` }}></div>
+                                    <div className="bg-green-500 h-full" style={{ width: `${Math.min(100, (stats.globalTotal / (stats.globalTarget || 1)) * 100)}%` }}></div>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Gráfica de Barras por Máquina */}
                         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-                            <h3 className="font-bold text-slate-800 mb-6">Producción Acumulada por Máquina</h3>
+                            <h3 className="font-bold text-slate-800 mb-6">Ranking de Producción</h3>
                             <div className="space-y-4">
-                                {totals.sortedMachines.map(m => {
-                                    const val = totals.machineTotals[m.id].total;
+                                {stats.sorted.map(m => {
+                                    const val = stats.machineTotals[m.id].total;
                                     const percent = maxVal > 0 ? (val / maxVal) * 100 : 0;
                                     return (
                                         <div key={m.id} className="flex items-center gap-4">
@@ -227,8 +230,7 @@
                                                 <div 
                                                     className="h-full bg-slate-800 rounded-r-lg flex items-center px-2 transition-all duration-500" 
                                                     style={{ width: `${percent}%` }}
-                                                >
-                                                </div>
+                                                ></div>
                                                 <span className="absolute left-2 top-0 bottom-0 flex items-center text-xs text-slate-500 font-medium mix-blend-difference text-white pl-2">
                                                     {val.toLocaleString()}
                                                 </span>
@@ -271,27 +273,29 @@
                             <div className="grid grid-cols-2 gap-4">
                                 <label className="block text-xs font-bold text-slate-500">
                                     MODELO
-                                    <input type="text" value={model} onChange={(e) => setModel(e.target.value)} className="mt-1 w-full p-2 border rounded-lg text-slate-800 text-sm" placeholder="Ej: B001" />
+                                    <input type="text" value={model} onChange={(e) => setModel(e.target.value)} className="mt-1 w-full p-2 border rounded-lg text-slate-800 text-sm font-semibold" placeholder="Ej: B001" />
                                 </label>
                                 <label className="block text-xs font-bold text-slate-500">
                                     META TOTAL
-                                    <input type="number" value={targetQty} onChange={(e) => setTargetQty(e.target.value)} className="mt-1 w-full p-2 border rounded-lg text-slate-800 text-sm" />
+                                    <input type="number" value={targetQty} onChange={(e) => setTargetQty(e.target.value)} className="mt-1 w-full p-2 border rounded-lg text-slate-800 text-sm font-semibold" />
                                 </label>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <label className="block text-xs font-bold text-slate-500">
                                     MIN/PIEZA
-                                    <input type="number" value={timeMin} onChange={(e) => setTimeMin(e.target.value)} className="mt-1 w-full p-2 border rounded-lg text-slate-800 text-sm" />
+                                    <input type="number" value={timeMin} onChange={(e) => setTimeMin(e.target.value)} className="mt-1 w-full p-2 border rounded-lg text-slate-800 text-sm font-semibold" />
                                 </label>
                                 <label className="block text-xs font-bold text-slate-500">
                                     HORAS TURNO
-                                    <select value={hours} onChange={(e) => setHours(e.target.value)} className="mt-1 w-full p-2 border rounded-lg text-slate-800 text-sm">
+                                    <select value={hours} onChange={(e) => setHours(e.target.value)} className="mt-1 w-full p-2 border rounded-lg text-slate-800 text-sm font-semibold">
                                         <option value={12}>12 Horas</option>
                                         <option value={24}>24 Horas</option>
                                     </select>
                                 </label>
                             </div>
-                            <button onClick={handleSave} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 mt-4">Guardar Plan</button>
+                            <button onClick={handleSave} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 mt-4 shadow-lg shadow-blue-200">
+                                Guardar Plan
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -309,29 +313,36 @@
             const [showStats, setShowStats] = useState(false);
             const [planningModal, setPlanningModal] = useState(null);
 
-            // Cargar Iconos
-            useEffect(() => { if (window.lucide) window.lucide.createIcons(); });
+            // Cargar Iconos Lucide
+            useEffect(() => { 
+                if (window.lucide) window.lucide.createIcons(); 
+            });
 
-            // Auth Anónima (Siempre logueado en background para DB)
+            // Auth y Data
             useEffect(() => {
-                signInAnonymously(auth).catch(console.error);
-                const unsubscribe = onSnapshot(collection(db, 'produccion_2025'), (snapshot) => {
+                auth.signInAnonymously().catch(console.error);
+                
+                const unsubscribe = db.collection('produccion_2025').onSnapshot((snapshot) => {
                     const data = {};
                     snapshot.forEach((doc) => data[doc.id] = doc.data());
                     setProductionData(data);
                     setLoading(false);
+                }, (error) => {
+                    console.error("Error obteniendo datos:", error);
+                    setLoading(false);
                 });
+                
                 return () => unsubscribe();
             }, []);
 
-            // --- LÓGICA DE PROCESAMIENTO (HERENCIA DE PLANES) ---
+            // Procesamiento de Datos (Memoized)
             const processedData = useMemo(() => {
                 const rows = [];
                 const machineState = {}; 
 
-                ALL_ROWS.forEach((rowId, index) => {
+                ALL_ROWS.forEach((rowId) => {
                     const rowData = {};
-                    MACHINES.forEach(machine => {
+                    RAW_MACHINES.forEach(machine => {
                         const rawCell = productionData[rowId]?.[machine.id] || {};
                         
                         if (rawCell.plan_model) {
@@ -351,8 +362,6 @@
                         if (activePlan) {
                             const totalTarget = activePlan.plan_target_qty || 1;
                             const totalProgressPercent = Math.min(100, ((activeState.accumulated) / totalTarget) * 100);
-                            
-                            // Calculo objetivo diario
                             const mins = activePlan.plan_time_min || 0;
                             const dailyTarget = mins > 0 ? Math.round(((activePlan.plan_hours || 24)*60)/mins) : 0;
 
@@ -371,25 +380,31 @@
                 return rows;
             }, [productionData]);
 
+            // Función Guardar
             const handleUpdate = useCallback(async (rowId, machineId, newData) => {
                 try {
-                    const docRef = doc(db, 'produccion_2025', rowId);
+                    const docRef = db.collection('produccion_2025').doc(rowId);
                     const payload = {};
                     Object.keys(newData).forEach(key => {
                         payload[`${machineId}.${key}`] = newData[key];
                     });
-                    await setDoc(docRef, payload, { merge: true });
-                } catch (err) { console.error(err); }
+                    await docRef.set(payload, { merge: true });
+                } catch (err) { console.error("Error guardando:", err); }
             }, []);
 
-            if (loading) return <div className="h-screen flex items-center justify-center text-slate-400"><i data-lucide="loader-2" className="animate-spin w-8 h-8"></i></div>;
+            if (loading) return (
+                <div className="h-screen flex items-center justify-center text-slate-400 gap-2">
+                    <i data-lucide="loader-2" className="animate-spin w-8 h-8"></i>
+                    <span>Cargando datos...</span>
+                </div>
+            );
 
-            // Filtrar filas: Si NO es admin, solo mostrar semana actual. Si ES admin, mostrar todo.
+            // Filtro de filas
             const visibleRowsData = processedData.filter(row => isAdmin || CURRENT_WEEK_ROWS.includes(row.rowId));
 
             return (
                 <div className="min-h-screen flex flex-col font-sans">
-                    {/* Modales */}
+                    {/* MODALES */}
                     {showAdminLogin && (
                         <AdminAuthModal 
                             onClose={() => setShowAdminLogin(false)} 
@@ -399,7 +414,7 @@
                     {showStats && <StatsDashboard data={productionData} onClose={() => setShowStats(false)} />}
                     {planningModal && (
                         <PlanningModal 
-                            machine={MACHINES.find(m => m.id === planningModal.machineId)}
+                            machine={RAW_MACHINES.find(m => m.id === planningModal.machineId)}
                             rowId={planningModal.rowId}
                             currentData={planningModal.data}
                             onClose={() => setPlanningModal(null)}
@@ -407,10 +422,12 @@
                         />
                     )}
 
-                    {/* Header */}
+                    {/* HEADER */}
                     <header className="bg-white border-b border-slate-200 sticky top-0 z-30 px-4 py-3 shadow-sm flex justify-between items-center">
                         <div className="flex items-center gap-2">
-                            <div className="bg-slate-800 text-white p-2 rounded-lg"><i data-lucide="factory" className="w-5 h-5"></i></div>
+                            <div className="bg-slate-800 text-white p-2 rounded-lg shadow-lg shadow-slate-200">
+                                <i data-lucide="factory" className="w-5 h-5"></i>
+                            </div>
                             <div>
                                 <h1 className="font-bold text-slate-800 leading-tight text-sm md:text-base">CONTROL DE PRODUCCIÓN</h1>
                                 <p className="text-[10px] text-slate-400 font-bold tracking-wider">CIRINEO TEXTIL</p>
@@ -435,7 +452,7 @@
                         </div>
                     </header>
 
-                    {/* Grid Principal */}
+                    {/* MAIN TABLE */}
                     <main className="flex-1 overflow-auto p-2 md:p-4 custom-scrollbar">
                         <div className="bg-white rounded-xl shadow border border-slate-200 overflow-hidden">
                             <div className="overflow-x-auto custom-scrollbar">
@@ -443,7 +460,7 @@
                                     <thead>
                                         <tr className="bg-slate-50 border-b border-slate-200 text-left">
                                             <th className="sticky left-0 z-20 bg-slate-50 p-3 min-w-[120px] border-r border-slate-200 shadow-sm text-xs text-slate-500 font-bold uppercase tracking-wider">Fecha</th>
-                                            {MACHINES.map(m => (
+                                            {RAW_MACHINES.map(m => (
                                                 <th key={m.id} className={`machine-col ${expandedMachineId === m.id ? 'expanded' : ''} p-2 border-r border-slate-100 align-top transition-all duration-300`}>
                                                     <button onClick={() => setExpandedMachineId(expandedMachineId === m.id ? null : m.id)} className="w-full flex flex-col items-center gap-1 hover:bg-slate-100 rounded p-1 transition group">
                                                         <div className="w-8 h-8 opacity-80 group-hover:opacity-100 transition"><MachineIconImage className="w-full h-full" /></div>
@@ -459,7 +476,7 @@
                                                 <td className="sticky left-0 z-10 bg-inherit p-3 border-r border-slate-200 text-xs font-bold text-slate-600 shadow-sm whitespace-nowrap">
                                                     {row.rowId}
                                                 </td>
-                                                {MACHINES.map(m => {
+                                                {RAW_MACHINES.map(m => {
                                                     const cell = row.machines[m.id];
                                                     const hasPlan = !!cell.derivedPlan;
                                                     const isExpanded = expandedMachineId === m.id;
@@ -467,26 +484,21 @@
                                                     return (
                                                         <td key={m.id} className={`p-1 border-r border-slate-100 relative machine-col ${isExpanded ? 'expanded' : ''} transition-all align-top`}>
                                                             <div className="flex flex-col h-full gap-1">
-                                                                {/* Cabecera del Plan (Visible para todos, editable solo Admin) */}
+                                                                {/* Cabecera del Plan */}
                                                                 <div className={`rounded text-[10px] p-1 flex justify-between items-start min-h-[1.5rem] transition-colors ${hasPlan ? 'bg-indigo-50/60' : ''}`}>
                                                                     {hasPlan && (
                                                                         <div className="flex-1 overflow-hidden">
                                                                             <div className="font-bold text-indigo-900 truncate" title={cell.derivedPlan.plan_model}>{cell.derivedPlan.plan_model}</div>
-                                                                            {/* Barra de progreso visual simple */}
                                                                             <div className="mt-0.5 w-full bg-indigo-100 h-1 rounded-full overflow-hidden">
                                                                                 <div className="bg-indigo-500 h-full" style={{width: `${cell.totalProgressPercent}%`}}></div>
                                                                             </div>
-                                                                            {/* Datos extra si está expandido o es Admin */}
                                                                             {(isExpanded || isAdmin) && (
                                                                                 <div className="mt-1 text-[9px] text-slate-500 leading-tight">
-                                                                                    Meta Dia: <b>{cell.dailyTarget}</b><br/>
-                                                                                    {isAdmin && `Acum: ${cell.accumulatedOfPlan}`}
+                                                                                    Meta: <b>{cell.dailyTarget}</b>
                                                                                 </div>
                                                                             )}
                                                                         </div>
                                                                     )}
-                                                                    
-                                                                    {/* Botón Admin para Planificar */}
                                                                     {isAdmin && (
                                                                         <button 
                                                                             onClick={() => setPlanningModal({ machineId: m.id, rowId: row.rowId, data: cell })}
@@ -497,7 +509,7 @@
                                                                     )}
                                                                 </div>
 
-                                                                {/* Input Principal - SIEMPRE HABILITADO */}
+                                                                {/* Input Producción */}
                                                                 <input 
                                                                     type="number" 
                                                                     value={cell.actual ?? ''}
