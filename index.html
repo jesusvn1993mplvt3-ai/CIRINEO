@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MAES26 - Monitor de Producción</title>
+    <title>MAES26 - Monitor Remoto</title>
 
-    <!-- Iconos y Estilos -->
     <link rel="icon" href="https://raw.githubusercontent.com/sweaters-liliana/MAES26/d41232c1301add433daea006546e2c6eb8dd23e6/icon%20maes.svg">
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
@@ -102,7 +101,7 @@
 
         const ALL_ROWS = generateCalendar();
         
-        // Calcular semana actual al inicio
+        // Calcular semana actual al inicio (Base)
         const INITIAL_WEEK = (() => {
             const todayISO = new Date().toISOString().split('T')[0];
             const foundIndex = ALL_ROWS.findIndex(r => r.isoDate === todayISO);
@@ -114,7 +113,10 @@
             const [data, setData] = useState({});
             const [ordersData, setOrdersData] = useState({});
             const [visibilityConfig, setVisibilityConfig] = useState({ machines: [], days: [] });
+            
+            // ESTADO DE NAVEGACIÓN (Controlado por Firebase)
             const [weekOffset, setWeekOffset] = useState(INITIAL_WEEK);
+            
             const [loading, setLoading] = useState(true);
             const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -124,24 +126,34 @@
                 return () => clearInterval(timer);
             }, []);
 
-            // Conexión a Firebase (Login Anónimo Automático)
+            // Conexión a Firebase
             useEffect(() => {
                 const unsubAuth = onAuthStateChanged(auth, (u) => {
                     if (u) {
-                        // Usuario autenticado, cargar datos
+                        // 1. Producción
                         const unsubDb = onSnapshot(collection(db, 'produccion_2026'), (snap) => { 
                             const d = {}; snap.forEach(doc => d[doc.id] = doc.data()); 
                             setData(d); 
                         });
+                        // 2. Visibilidad (Máquinas Ocultas)
                         const unsubSettings = onSnapshot(doc(db, 'settings', 'visibility'), (docSnap) => { 
                             if (docSnap.exists()) setVisibilityConfig(docSnap.data()); 
                         });
+                        // 3. Pedidos/Metas
                         const unsubOrders = onSnapshot(doc(db, 'settings', 'orders'), (docSnap) => { 
                             if (docSnap.exists()) setOrdersData(docSnap.data()); 
                             setLoading(false);
                         });
+                        // 4. NAVEGACIÓN REMOTA (Aquí escuchamos al control remoto)
+                        const unsubNav = onSnapshot(doc(db, 'settings', 'navigation'), (docSnap) => {
+                            if (docSnap.exists()) {
+                                const remoteDelta = docSnap.data().weekOffset || 0;
+                                // Sumamos el offset del control remoto a la semana base (Hoy)
+                                setWeekOffset(INITIAL_WEEK + remoteDelta);
+                            }
+                        });
+
                     } else {
-                        // Si no hay usuario, iniciar sesión anónima
                         signInAnonymously(auth).catch(err => console.error("Error login:", err));
                     }
                 });
@@ -153,20 +165,21 @@
             
             const currentWeekRows = useMemo(() => { 
                 const start = weekOffset * 7; 
-                return ALL_ROWS.slice(start, start + 7); 
+                // Evitar errores si nos salimos del rango
+                const safeStart = Math.max(0, Math.min(start, ALL_ROWS.length - 7));
+                return ALL_ROWS.slice(safeStart, safeStart + 7); 
             }, [weekOffset]);
 
             const weekLabel = useMemo(() => {
                 if (!currentWeekRows.length) return '';
-                const f = currentWeekRows[0], l = currentWeekRows[currentWeekRows.length - 1];
+                const f = currentWeekRows[0];
                 return `${f.month} ${f.year}`;
             }, [currentWeekRows]);
 
-            // Función de cálculo de métricas (Simplificada para el dashboard)
+            // Función de cálculo de métricas
             const getMetrics = (machineId, rowData, dateRow) => {
                 const order = ordersData[machineId];
                 const slots = rowData[machineId]?.slots || [];
-                // Sumar producción de todos los operadores
                 const produced = slots.reduce((acc, s) => acc + (Number(s?.qty) || 0), 0);
                 
                 const result = { produced, status: 'idle', efficiency: 0, target: 0, isPlanned: false };
@@ -176,27 +189,23 @@
                     const isDisabledDate = (order.disabledDates || []).includes(dateRow.isoDate);
                     const isStarted = dateRow.isoDate >= order.startDate;
                     
-                    // Si el pedido está activo en esta fecha y no es feriado
                     if (isStarted && !isHiddenDay && !isDisabledDate) {
                         result.isPlanned = true;
-                        
-                        // Meta Diaria (Estimada)
-                        const dailyHours = order.dailyHours || 24; // Asumimos 24h si no especifica, para meter presión en dashboard
+                        const dailyHours = order.dailyHours || 24; 
                         const timePerPiece = Number(order.timePerPieceMin) || 0;
                         if (timePerPiece > 0) {
                             result.target = Math.floor((dailyHours * 60) / timePerPiece);
                             result.efficiency = Math.min(100, (produced / result.target) * 100);
                         }
 
-                        // Lógica de Estado
                         if (produced === 0) {
-                            result.status = 'critical'; // Rojo parpadeante
+                            result.status = 'critical'; 
                         } else if (result.efficiency >= 90) {
-                            result.status = 'excellent'; // Verde
+                            result.status = 'excellent'; 
                         } else if (result.efficiency >= 70) {
-                            result.status = 'good'; // Amarillo
+                            result.status = 'good';
                         } else {
-                            result.status = 'low'; // Naranja/Rojo fijo
+                            result.status = 'low'; 
                         }
                     }
                 }
@@ -207,14 +216,14 @@
                 <div className="flex h-screen items-center justify-center bg-slate-950">
                     <div className="text-center">
                         <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                        <h2 className="text-2xl font-bold text-blue-500 animate-pulse">CARGANDO SISTEMA...</h2>
+                        <h2 className="text-2xl font-bold text-blue-500 animate-pulse">SINCRONIZANDO...</h2>
                     </div>
                 </div>
             );
 
             return (
                 <div className="flex flex-col h-screen bg-slate-950 text-white fade-in select-none">
-                    {/* HEADER TIPO DASHBOARD */}
+                    {/* HEADER */}
                     <header className="bg-slate-900 border-b border-slate-800 p-4 flex justify-between items-center shadow-2xl z-20">
                         <div className="flex items-center gap-6">
                             <img src="https://raw.githubusercontent.com/sweaters-liliana/MAES26/d41232c1301add433daea006546e2c6eb8dd23e6/icon%20maes.svg" className="w-16 h-16 rounded-xl shadow-lg bg-white p-1" />
@@ -222,7 +231,7 @@
                                 <h1 className="text-4xl font-black tracking-tighter text-white kiosk-text">MONITOR DE PLANTA</h1>
                                 <div className="flex items-center gap-2 mt-1">
                                     <span className="bg-green-500 w-3 h-3 rounded-full animate-pulse"></span>
-                                    <span className="text-sm text-green-400 font-bold tracking-widest uppercase">Sistema en Línea • Actualización en Tiempo Real</span>
+                                    <span className="text-sm text-green-400 font-bold tracking-widest uppercase">Sistema Remoto Activo</span>
                                 </div>
                             </div>
                         </div>
@@ -278,13 +287,11 @@
                                             {visibleMachines.map(m => {
                                                 const metrics = getMetrics(m.id, data[row.id] || {}, row);
                                                 
-                                                // Definir clases base
                                                 let cellClass = "p-2 border-r border-slate-800/30 text-center relative h-24 align-middle transition-all duration-500 ";
                                                 let content = <span className="text-slate-800 text-2xl font-bold">-</span>;
 
                                                 if (metrics.isPlanned) {
                                                     if (metrics.status === 'critical') {
-                                                        // PARPADEO ROJO
                                                         cellClass += "animate-critical";
                                                         content = (
                                                             <div className="flex flex-col items-center justify-center h-full">
@@ -294,7 +301,6 @@
                                                             </div>
                                                         );
                                                     } else {
-                                                        // Producción Normal
                                                         let colorClass = "text-slate-400";
                                                         let barColor = "bg-slate-600";
                                                         
@@ -336,12 +342,11 @@
                         </table>
                     </main>
 
-                    {/* FOOTER DE CONTROL DE SEMANA (Discreto) */}
-                    <footer className="fixed bottom-4 right-4 z-30 opacity-50 hover:opacity-100 transition-opacity">
-                        <div className="flex bg-slate-800 rounded-full p-1 border border-slate-700 shadow-xl">
-                            <button onClick={() => setWeekOffset(p => p - 1)} className="p-3 hover:bg-slate-700 rounded-full text-white"><i data-lucide="arrow-left"></i></button>
-                            <div className="px-4 flex items-center font-bold text-slate-300 uppercase">{weekLabel}</div>
-                            <button onClick={() => setWeekOffset(p => p + 1)} className="p-3 hover:bg-slate-700 rounded-full text-white"><i data-lucide="arrow-right"></i></button>
+                    {/* FOOTER (SOLO INDICADOR DE CONTROL REMOTO) */}
+                    <footer className="fixed bottom-4 right-4 z-30 opacity-80">
+                        <div className="flex bg-slate-900 rounded-full p-2 px-6 border border-slate-700 shadow-xl items-center gap-3">
+                            <i data-lucide="wifi" className="w-5 h-5 text-green-500 animate-pulse"></i>
+                            <span className="font-bold text-slate-300 uppercase tracking-widest">{weekLabel}</span>
                         </div>
                     </footer>
                 </div>
@@ -350,6 +355,8 @@
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<Dashboard />);
+        // Inicializar iconos
+        lucide.createIcons();
     </script>
 </body>
 </html>
