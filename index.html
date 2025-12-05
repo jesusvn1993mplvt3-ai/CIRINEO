@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MAES26 - Monitor Remoto</title>
+    <title>MAES26 - Monitor Inteligente</title>
 
     <link rel="icon" href="https://raw.githubusercontent.com/sweaters-liliana/MAES26/d41232c1301add433daea006546e2c6eb8dd23e6/icon%20maes.svg">
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
@@ -14,12 +14,9 @@
     
     <style>
         body { background-color: #020617; color: #e2e8f0; overflow: hidden; }
-        
-        /* Ocultar scrollbars pero permitir scroll */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
-        /* Animación de Alerta Crítica (Parpadeo Rojo Intenso) */
+        
         @keyframes critical-blink {
             0%, 100% { background-color: rgba(127, 29, 29, 0.4); box-shadow: inset 0 0 20px rgba(220, 38, 38, 0.5); }
             50% { background-color: rgba(185, 28, 28, 0.9); box-shadow: inset 0 0 50px rgba(239, 68, 68, 0.8); }
@@ -30,13 +27,12 @@
             font-weight: 900;
             border: 2px solid #ef4444;
         }
-
-        /* Animación suave de entrada */
         .fade-in { animation: fadeIn 1s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-
-        /* Estilo para textos grandes en monitor */
         .kiosk-text { text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        
+        /* Smooth scrolling para la tabla */
+        main { scroll-behavior: smooth; }
     </style>
 </head>
 <body>
@@ -50,7 +46,6 @@
 
         const { useState, useEffect, useMemo, useRef } = React;
 
-        // --- CONFIGURACIÓN FIREBASE ---
         const firebaseConfig = {
             apiKey: "AIzaSyBqHgV4vDat1-VmZfKbiPg7nuiX-ROcexw",
             authDomain: "cirineo-cec21.firebaseapp.com",
@@ -65,7 +60,6 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // --- DATOS ESTÁTICOS ---
         const MACHINES = [
             { id: 'm35', name: 'MAQ 35', type: 'SANTONI' }, { id: 'm39', name: 'MAQ 39', type: 'SANTONI' },
             { id: 'm40', name: 'MAQ 40', type: 'SANTONI' }, { id: 'm36', name: 'MAQ 36', type: 'CIXING' },
@@ -101,55 +95,65 @@
 
         const ALL_ROWS = generateCalendar();
         
-        // Calcular semana actual al inicio (Base)
         const INITIAL_WEEK = (() => {
             const todayISO = new Date().toISOString().split('T')[0];
             const foundIndex = ALL_ROWS.findIndex(r => r.isoDate === todayISO);
             return foundIndex !== -1 ? Math.floor(foundIndex / 7) : 0;
         })();
 
-        // --- COMPONENTE DASHBOARD ---
         const Dashboard = () => {
             const [data, setData] = useState({});
             const [ordersData, setOrdersData] = useState({});
             const [visibilityConfig, setVisibilityConfig] = useState({ machines: [], days: [] });
             
-            // ESTADO DE NAVEGACIÓN (Controlado por Firebase)
+            // Estados de Navegación Remota
             const [weekOffset, setWeekOffset] = useState(INITIAL_WEEK);
+            const [scrollLevel, setScrollLevel] = useState(0); // Nuevo estado para scroll
             
             const [loading, setLoading] = useState(true);
             const [currentTime, setCurrentTime] = useState(new Date());
+            
+            // Referencia para hacer scroll
+            const mainTableRef = useRef(null);
 
-            // Reloj en tiempo real
             useEffect(() => {
                 const timer = setInterval(() => setCurrentTime(new Date()), 1000);
                 return () => clearInterval(timer);
             }, []);
 
-            // Conexión a Firebase
+            // Efecto para aplicar el Scroll cuando cambia scrollLevel
+            useEffect(() => {
+                if (mainTableRef.current) {
+                    // Cada nivel de scroll baja 150 pixeles (aprox 1.5 filas)
+                    mainTableRef.current.scrollTo({
+                        top: scrollLevel * 150,
+                        behavior: 'smooth'
+                    });
+                }
+            }, [scrollLevel]);
+
             useEffect(() => {
                 const unsubAuth = onAuthStateChanged(auth, (u) => {
                     if (u) {
-                        // 1. Producción
                         const unsubDb = onSnapshot(collection(db, 'produccion_2026'), (snap) => { 
                             const d = {}; snap.forEach(doc => d[doc.id] = doc.data()); 
                             setData(d); 
                         });
-                        // 2. Visibilidad (Máquinas Ocultas)
                         const unsubSettings = onSnapshot(doc(db, 'settings', 'visibility'), (docSnap) => { 
                             if (docSnap.exists()) setVisibilityConfig(docSnap.data()); 
                         });
-                        // 3. Pedidos/Metas
                         const unsubOrders = onSnapshot(doc(db, 'settings', 'orders'), (docSnap) => { 
                             if (docSnap.exists()) setOrdersData(docSnap.data()); 
                             setLoading(false);
                         });
-                        // 4. NAVEGACIÓN REMOTA (Aquí escuchamos al control remoto)
+                        
+                        // LISTENER DE NAVEGACIÓN COMPLETA
                         const unsubNav = onSnapshot(doc(db, 'settings', 'navigation'), (docSnap) => {
                             if (docSnap.exists()) {
-                                const remoteDelta = docSnap.data().weekOffset || 0;
-                                // Sumamos el offset del control remoto a la semana base (Hoy)
+                                const navData = docSnap.data();
+                                const remoteDelta = navData.weekOffset || 0;
                                 setWeekOffset(INITIAL_WEEK + remoteDelta);
+                                setScrollLevel(navData.scrollLevel || 0); // Actualizar scroll
                             }
                         });
 
@@ -160,12 +164,10 @@
                 return () => unsubAuth();
             }, []);
 
-            // Filtrar y preparar datos
             const visibleMachines = useMemo(() => MACHINES.filter(m => !visibilityConfig.machines?.includes(m.id)), [visibilityConfig.machines]);
             
             const currentWeekRows = useMemo(() => { 
                 const start = weekOffset * 7; 
-                // Evitar errores si nos salimos del rango
                 const safeStart = Math.max(0, Math.min(start, ALL_ROWS.length - 7));
                 return ALL_ROWS.slice(safeStart, safeStart + 7); 
             }, [weekOffset]);
@@ -176,7 +178,6 @@
                 return `${f.month} ${f.year}`;
             }, [currentWeekRows]);
 
-            // Función de cálculo de métricas
             const getMetrics = (machineId, rowData, dateRow) => {
                 const order = ordersData[machineId];
                 const slots = rowData[machineId]?.slots || [];
@@ -243,8 +244,8 @@
                         </div>
                     </header>
 
-                    {/* TABLA PRINCIPAL */}
-                    <main className="flex-1 overflow-auto no-scrollbar bg-slate-950 p-2">
+                    {/* TABLA PRINCIPAL - REFERENCIA AGREGADA AQUÍ */}
+                    <main ref={mainTableRef} className="flex-1 overflow-auto no-scrollbar bg-slate-950 p-2 scroll-smooth">
                         <table className="w-full border-collapse">
                             <thead className="sticky top-0 z-10 bg-slate-950 shadow-xl">
                                 <tr>
@@ -252,15 +253,12 @@
                                     {visibleMachines.map(m => {
                                         const order = ordersData[m.id];
                                         const hasOrder = order && (order.totalQty > 0 || (order.parts && order.parts.length > 0));
-                                        
                                         return (
                                             <th key={m.id} className="p-2 border-b-2 border-slate-800 min-w-[140px] bg-slate-950">
                                                 <div className="flex flex-col items-center">
                                                     <span className="text-2xl font-black text-blue-500 mb-1">{m.name.replace('MAQ ','M-')}</span>
                                                     {hasOrder ? (
-                                                        <span className="px-3 py-1 bg-slate-800 rounded-full text-xs font-bold text-yellow-400 border border-slate-700 truncate max-w-[120px] shadow-sm">
-                                                            {order.model}
-                                                        </span>
+                                                        <span className="px-3 py-1 bg-slate-800 rounded-full text-xs font-bold text-yellow-400 border border-slate-700 truncate max-w-[120px] shadow-sm">{order.model}</span>
                                                     ) : (
                                                         <span className="text-xs text-slate-700 font-bold uppercase tracking-widest">Inactiva</span>
                                                     )}
@@ -274,7 +272,6 @@
                                 {currentWeekRows.map((row) => {
                                     const isToday = row.isoDate === new Date().toISOString().split('T')[0];
                                     const isHidden = visibilityConfig.days?.includes(row.id);
-
                                     return (
                                         <tr key={row.id} className={`border-b border-slate-800/50 ${isToday ? 'bg-blue-900/10' : ''} ${isHidden ? 'opacity-20 bg-slate-950' : ''}`}>
                                             <td className="p-4 font-bold border-r border-slate-800/50">
@@ -283,13 +280,10 @@
                                                     <span className={`text-4xl leading-none font-black ${isToday ? 'text-blue-400' : 'text-slate-300'}`}>{row.dateNum}</span>
                                                 </div>
                                             </td>
-                                            
                                             {visibleMachines.map(m => {
                                                 const metrics = getMetrics(m.id, data[row.id] || {}, row);
-                                                
                                                 let cellClass = "p-2 border-r border-slate-800/30 text-center relative h-24 align-middle transition-all duration-500 ";
                                                 let content = <span className="text-slate-800 text-2xl font-bold">-</span>;
-
                                                 if (metrics.isPlanned) {
                                                     if (metrics.status === 'critical') {
                                                         cellClass += "animate-critical";
@@ -303,27 +297,18 @@
                                                     } else {
                                                         let colorClass = "text-slate-400";
                                                         let barColor = "bg-slate-600";
-                                                        
                                                         if (metrics.status === 'excellent') { colorClass = "text-green-400"; barColor = "bg-green-500"; }
                                                         else if (metrics.status === 'good') { colorClass = "text-yellow-400"; barColor = "bg-yellow-500"; }
                                                         else if (metrics.status === 'low') { colorClass = "text-orange-500"; barColor = "bg-orange-600"; }
-
                                                         content = (
                                                             <div className="flex flex-col h-full justify-between py-2 px-1">
                                                                 <div className="flex items-baseline justify-center gap-1">
-                                                                    <span className={`text-4xl font-black ${colorClass} tracking-tighter kiosk-text`}>
-                                                                        {metrics.produced}
-                                                                    </span>
+                                                                    <span className={`text-4xl font-black ${colorClass} tracking-tighter kiosk-text`}>{metrics.produced}</span>
                                                                     <span className="text-xs font-bold text-slate-600 uppercase">pzas</span>
                                                                 </div>
-                                                                
                                                                 <div className="w-full bg-slate-800 h-3 rounded-full overflow-hidden shadow-inner border border-slate-700/50">
-                                                                    <div 
-                                                                        className={`h-full ${barColor} shadow-[0_0_10px_rgba(0,0,0,0.5)]`} 
-                                                                        style={{width: `${metrics.efficiency}%`}}
-                                                                    ></div>
+                                                                    <div className={`h-full ${barColor} shadow-[0_0_10px_rgba(0,0,0,0.5)]`} style={{width: `${metrics.efficiency}%`}}></div>
                                                                 </div>
-                                                                
                                                                 <div className="flex justify-between items-center px-1 mt-1">
                                                                     <span className="text-[10px] font-bold text-slate-500 uppercase">Meta: {metrics.target}</span>
                                                                     <span className={`text-sm font-bold ${colorClass}`}>{metrics.efficiency.toFixed(0)}%</span>
@@ -332,7 +317,6 @@
                                                         );
                                                     }
                                                 }
-
                                                 return <td key={m.id} className={cellClass}>{content}</td>;
                                             })}
                                         </tr>
@@ -342,7 +326,6 @@
                         </table>
                     </main>
 
-                    {/* FOOTER (SOLO INDICADOR DE CONTROL REMOTO) */}
                     <footer className="fixed bottom-4 right-4 z-30 opacity-80">
                         <div className="flex bg-slate-900 rounded-full p-2 px-6 border border-slate-700 shadow-xl items-center gap-3">
                             <i data-lucide="wifi" className="w-5 h-5 text-green-500 animate-pulse"></i>
@@ -355,7 +338,6 @@
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<Dashboard />);
-        // Inicializar iconos
         lucide.createIcons();
     </script>
 </body>
