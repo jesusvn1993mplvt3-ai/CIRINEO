@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MAES26 - Monitor Remoto</title>
+    <title>MAES26 - Monitor Directo</title>
 
     <link rel="icon" href="https://raw.githubusercontent.com/sweaters-liliana/MAES26/d41232c1301add433daea006546e2c6eb8dd23e6/icon%20maes.svg">
+    
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -13,30 +14,15 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     
     <style>
-        body { background-color: #020617; color: #e2e8f0; overflow: hidden; }
-        
-        /* Ocultar scrollbars pero permitir scroll */
+        body { background-color: #020617; color: #e2e8f0; overflow: hidden; font-family: sans-serif; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
-        /* Animación de Alerta Crítica (Parpadeo Rojo Intenso) */
-        @keyframes critical-blink {
-            0%, 100% { background-color: rgba(127, 29, 29, 0.4); box-shadow: inset 0 0 20px rgba(220, 38, 38, 0.5); }
-            50% { background-color: rgba(185, 28, 28, 0.9); box-shadow: inset 0 0 50px rgba(239, 68, 68, 0.8); }
-        }
-        .animate-critical {
-            animation: critical-blink 1s infinite ease-in-out;
-            color: #ffffff;
-            font-weight: 900;
-            border: 2px solid #ef4444;
-        }
-
-        /* Animación suave de entrada */
-        .fade-in { animation: fadeIn 1s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-
-        /* Estilo para textos grandes en monitor */
-        .kiosk-text { text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        
+        .fade-in { animation: fadeIn 0.8s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        .kiosk-text { text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
+        .glass-panel { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
     </style>
 </head>
 <body>
@@ -50,7 +36,7 @@
 
         const { useState, useEffect, useMemo, useRef } = React;
 
-        // --- CONFIGURACIÓN FIREBASE ---
+        // Configuración Firebase (Misma que usas actualmente)
         const firebaseConfig = {
             apiKey: "AIzaSyBqHgV4vDat1-VmZfKbiPg7nuiX-ROcexw",
             authDomain: "cirineo-cec21.firebaseapp.com",
@@ -65,20 +51,21 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // --- DATOS ESTÁTICOS ---
+        // Lista de Máquinas
         const MACHINES = [
-            { id: 'm35', name: 'MAQ 35', type: 'SANTONI' }, { id: 'm39', name: 'MAQ 39', type: 'SANTONI' },
-            { id: 'm40', name: 'MAQ 40', type: 'SANTONI' }, { id: 'm36', name: 'MAQ 36', type: 'CIXING' },
-            { id: 'm38', name: 'MAQ 38', type: 'SANTONI' }, { id: 'm37', name: 'MAQ 37', type: 'SANTONI' },
-            { id: 'm29', name: 'MAQ 29', type: 'EVO4' },    { id: 'm28', name: 'MAQ 28', type: 'EVO4' },
-            { id: 'm27', name: 'MAQ 27', type: 'EVO4' },    { id: 'm33', name: 'MAQ 33', type: 'EVO4' },
-            { id: 'm1',  name: 'MAQ 1',  type: 'CIXING' }, { id: 'm30', name: 'MAQ 30', type: 'CIXING' },
-            { id: 'm31', name: 'MAQ 31', type: 'CIXING' }, { id: 'm6',  name: 'MAQ 6',  type: 'CIXING' },
-            { id: 'm32', name: 'MAQ 32', type: 'CIXING' }, { id: 'm13', name: 'MAQ 13', type: 'EVO4' },
-            { id: 'm12', name: 'MAQ 12', type: 'EVO4' },    { id: 'm24', name: 'MAQ 24', type: 'EVO4' },
-            { id: 'm8',  name: 'MAQ 8',  type: 'TOP2' },
+            { id: 'm35', name: 'M-35' }, { id: 'm39', name: 'M-39' },
+            { id: 'm40', name: 'M-40' }, { id: 'm36', name: 'M-36' },
+            { id: 'm38', name: 'M-38' }, { id: 'm37', name: 'M-37' },
+            { id: 'm29', name: 'M-29' }, { id: 'm28', name: 'M-28' },
+            { id: 'm27', name: 'M-27' }, { id: 'm33', name: 'M-33' },
+            { id: 'm1',  name: 'M-01' }, { id: 'm30', name: 'M-30' },
+            { id: 'm31', name: 'M-31' }, { id: 'm6',  name: 'M-06' },
+            { id: 'm32', name: 'M-32' }, { id: 'm13', name: 'M-13' },
+            { id: 'm12', name: 'M-12' }, { id: 'm24', name: 'M-24' },
+            { id: 'm8',  name: 'M-08' },
         ];
 
+        // Generador de Calendario (Igual que Control Total para coincidir IDs)
         const generateCalendar = () => {
             const dates = [];
             const months = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
@@ -88,6 +75,7 @@
             for (let d = start; d <= end; d.setDate(d.getDate() + 1)) {
                 dates.push({
                     index: idx++,
+                    // ID exacto que usa la base de datos
                     id: `${['DOMINGO','LUNES','MARTES','MIERCOLES','JUEVES','VIERNES','SABADO'][d.getDay()]} ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`,
                     shortDay: ['DOM', 'LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB'][d.getDay()],
                     dateNum: d.getDate(),
@@ -101,71 +89,152 @@
 
         const ALL_ROWS = generateCalendar();
         
-        // Calcular semana actual al inicio (Base)
+        // Semana actual inicial
         const INITIAL_WEEK = (() => {
             const todayISO = new Date().toISOString().split('T')[0];
             const foundIndex = ALL_ROWS.findIndex(r => r.isoDate === todayISO);
             return foundIndex !== -1 ? Math.floor(foundIndex / 7) : 0;
         })();
 
-        // --- COMPONENTE DASHBOARD ---
+        // --- COMPONENTE DE CELDA INTELIGENTE ---
+        const SmartCell = ({ machineId, rowData }) => {
+            // Lógica Simplificada:
+            // 1. Extraemos los slots (turnos) de la máquina para ese día
+            const mData = rowData?.[machineId] || {};
+            const slots = mData.slots || []; // Array de slots [0,1,2,3]
+
+            // 2. Calculamos Meta y Real sumando los slots
+            let totalTarget = 0;
+            let totalProduced = 0;
+            let hasActivity = false;
+
+            slots.forEach(slot => {
+                if (!slot) return;
+                
+                // META: Viene del campo 'model' (MOD). Si no es número, es 0.
+                const targetVal = parseFloat(slot.model);
+                if (!isNaN(targetVal)) totalTarget += targetVal;
+
+                // REAL: Viene del campo 'qty' (CANT).
+                const qtyVal = parseFloat(slot.qty);
+                if (!isNaN(qtyVal)) {
+                    totalProduced += qtyVal;
+                    // Si hay producción registrada, marcamos actividad
+                    if (qtyVal > 0) hasActivity = true;
+                }
+                
+                // Si escribieron Meta pero no Real, también es actividad (planificada)
+                if (!isNaN(targetVal) && targetVal > 0) hasActivity = true;
+            });
+
+            // Si no hay nada escrito en MOD ni en CANT, mostrar celda vacía
+            if (!hasActivity && totalTarget === 0 && totalProduced === 0) {
+                return <div className="h-full w-full flex items-center justify-center opacity-10"><span className="text-2xl font-bold text-slate-700">-</span></div>;
+            }
+
+            // Cálculo de Eficiencia Simple
+            const efficiency = totalTarget > 0 ? (totalProduced / totalTarget) * 100 : 0;
+            
+            // Colores según eficiencia
+            let color = "text-slate-400";
+            let barColor = "bg-slate-600";
+            
+            if (efficiency >= 100) { color = "text-green-400"; barColor = "bg-green-500"; }
+            else if (efficiency >= 90) { color = "text-blue-400"; barColor = "bg-blue-500"; }
+            else if (efficiency >= 70) { color = "text-yellow-400"; barColor = "bg-yellow-500"; }
+            else { color = "text-red-400"; barColor = "bg-red-500"; }
+
+            return (
+                <div className="flex flex-col h-full justify-center px-1 py-2">
+                    {/* Número Grande (Producido) */}
+                    <div className="flex items-baseline justify-center gap-1 mb-1">
+                        <span className={`text-4xl font-black ${color} kiosk-text tracking-tighter`}>
+                            {totalProduced}
+                        </span>
+                    </div>
+
+                    {/* Barra de Progreso */}
+                    <div className="w-full bg-slate-800 h-4 rounded-sm overflow-hidden border border-slate-700/50 mb-1">
+                        <div 
+                            className={`h-full ${barColor} transition-all duration-700 ease-out shadow-[0_0_15px_rgba(0,0,0,0.5)]`} 
+                            style={{width: `${Math.min(100, efficiency)}%`}}
+                        ></div>
+                    </div>
+
+                    {/* Meta y Porcentaje */}
+                    <div className="flex justify-between items-center text-xs font-bold px-1">
+                        <span className="text-slate-500 uppercase tracking-wide">META: <span className="text-slate-300">{totalTarget}</span></span>
+                        <span className={color}>{efficiency.toFixed(0)}%</span>
+                    </div>
+                </div>
+            );
+        };
+
         const Dashboard = () => {
             const [data, setData] = useState({});
-            const [ordersData, setOrdersData] = useState({});
-            const [visibilityConfig, setVisibilityConfig] = useState({ machines: [], days: [] });
-            
-            // ESTADO DE NAVEGACIÓN (Controlado por Firebase)
             const [weekOffset, setWeekOffset] = useState(INITIAL_WEEK);
-            
-            const [loading, setLoading] = useState(true);
+            const [visibilityConfig, setVisibilityConfig] = useState({ machines: [], days: [] });
             const [currentTime, setCurrentTime] = useState(new Date());
+            const [status, setStatus] = useState('connecting'); // connecting, online, offline
 
-            // Reloj en tiempo real
+            // Reloj
             useEffect(() => {
                 const timer = setInterval(() => setCurrentTime(new Date()), 1000);
                 return () => clearInterval(timer);
             }, []);
 
-            // Conexión a Firebase
+            // Iconos
+            useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [data, weekOffset]);
+
+            // Conexión Firebase Robustecida
             useEffect(() => {
                 const unsubAuth = onAuthStateChanged(auth, (u) => {
                     if (u) {
-                        // 1. Producción
-                        const unsubDb = onSnapshot(collection(db, 'produccion_2026'), (snap) => { 
-                            const d = {}; snap.forEach(doc => d[doc.id] = doc.data()); 
-                            setData(d); 
-                        });
-                        // 2. Visibilidad (Máquinas Ocultas)
+                        setStatus('online');
+                        
+                        // 1. Escuchar DATOS DE PRODUCCIÓN (Colección Completa)
+                        // Usamos 'produccion_2026' porque ahí es donde están los slots con el texto "MOD"
+                        const unsubDb = onSnapshot(collection(db, 'produccion_2026'), 
+                            (snap) => { 
+                                const d = {}; 
+                                snap.forEach(doc => d[doc.id] = doc.data()); 
+                                setData(d); 
+                            },
+                            (error) => {
+                                console.error("Error BD:", error);
+                                setStatus('offline');
+                            }
+                        );
+
+                        // 2. Escuchar Configuración de Visibilidad (Opcional, para ocultar máquinas)
                         const unsubSettings = onSnapshot(doc(db, 'settings', 'visibility'), (docSnap) => { 
                             if (docSnap.exists()) setVisibilityConfig(docSnap.data()); 
                         });
-                        // 3. Pedidos/Metas
-                        const unsubOrders = onSnapshot(doc(db, 'settings', 'orders'), (docSnap) => { 
-                            if (docSnap.exists()) setOrdersData(docSnap.data()); 
-                            setLoading(false);
-                        });
-                        // 4. NAVEGACIÓN REMOTA (Aquí escuchamos al control remoto)
+                        
+                        // 3. Escuchar Navegación Remota (Opcional)
                         const unsubNav = onSnapshot(doc(db, 'settings', 'navigation'), (docSnap) => {
                             if (docSnap.exists()) {
-                                const remoteDelta = docSnap.data().weekOffset || 0;
-                                // Sumamos el offset del control remoto a la semana base (Hoy)
-                                setWeekOffset(INITIAL_WEEK + remoteDelta);
+                                const navData = docSnap.data();
+                                if (navData.weekDelta !== undefined) setWeekOffset(INITIAL_WEEK + navData.weekDelta);
                             }
                         });
 
+                        return () => { unsubDb(); unsubSettings(); unsubNav(); };
                     } else {
-                        signInAnonymously(auth).catch(err => console.error("Error login:", err));
+                        signInAnonymously(auth).catch(e => {
+                            console.error("Auth Error", e);
+                            setStatus('offline');
+                        });
                     }
                 });
                 return () => unsubAuth();
             }, []);
 
-            // Filtrar y preparar datos
+            // Filtros de datos
             const visibleMachines = useMemo(() => MACHINES.filter(m => !visibilityConfig.machines?.includes(m.id)), [visibilityConfig.machines]);
             
             const currentWeekRows = useMemo(() => { 
                 const start = weekOffset * 7; 
-                // Evitar errores si nos salimos del rango
                 const safeStart = Math.max(0, Math.min(start, ALL_ROWS.length - 7));
                 return ALL_ROWS.slice(safeStart, safeStart + 7); 
             }, [weekOffset]);
@@ -176,187 +245,98 @@
                 return `${f.month} ${f.year}`;
             }, [currentWeekRows]);
 
-            // Función de cálculo de métricas
-            const getMetrics = (machineId, rowData, dateRow) => {
-                const order = ordersData[machineId];
-                const slots = rowData[machineId]?.slots || [];
-                const produced = slots.reduce((acc, s) => acc + (Number(s?.qty) || 0), 0);
-                
-                const result = { produced, status: 'idle', efficiency: 0, target: 0, isPlanned: false };
-
-                if (order && order.startDate) {
-                    const isHiddenDay = visibilityConfig.days?.includes(dateRow.id);
-                    const isDisabledDate = (order.disabledDates || []).includes(dateRow.isoDate);
-                    const isStarted = dateRow.isoDate >= order.startDate;
-                    
-                    if (isStarted && !isHiddenDay && !isDisabledDate) {
-                        result.isPlanned = true;
-                        const dailyHours = order.dailyHours || 24; 
-                        const timePerPiece = Number(order.timePerPieceMin) || 0;
-                        if (timePerPiece > 0) {
-                            result.target = Math.floor((dailyHours * 60) / timePerPiece);
-                            result.efficiency = Math.min(100, (produced / result.target) * 100);
-                        }
-
-                        if (produced === 0) {
-                            result.status = 'critical'; 
-                        } else if (result.efficiency >= 90) {
-                            result.status = 'excellent'; 
-                        } else if (result.efficiency >= 70) {
-                            result.status = 'good';
-                        } else {
-                            result.status = 'low'; 
-                        }
-                    }
-                }
-                return result;
-            };
-
-            if (loading) return (
-                <div className="flex h-screen items-center justify-center bg-slate-950">
-                    <div className="text-center">
-                        <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                        <h2 className="text-2xl font-bold text-blue-500 animate-pulse">SINCRONIZANDO...</h2>
-                    </div>
-                </div>
-            );
-
+            // Renderizado
             return (
-                <div className="flex flex-col h-screen bg-slate-950 text-white fade-in select-none">
+                <div className="flex flex-col h-screen bg-slate-950 text-white fade-in select-none font-sans">
+                    
                     {/* HEADER */}
-                    <header className="bg-slate-900 border-b border-slate-800 p-4 flex justify-between items-center shadow-2xl z-20">
-                        <div className="flex items-center gap-6">
-                            <img src="https://raw.githubusercontent.com/sweaters-liliana/MAES26/d41232c1301add433daea006546e2c6eb8dd23e6/icon%20maes.svg" className="w-16 h-16 rounded-xl shadow-lg bg-white p-1" />
+                    <header className="bg-slate-900 border-b border-slate-800 p-3 flex justify-between items-center shadow-2xl z-20 shrink-0 h-24">
+                        <div className="flex items-center gap-4 pl-2">
+                            <div className="bg-blue-600 p-2 rounded-xl shadow-lg shadow-blue-900/50">
+                                <img src="https://raw.githubusercontent.com/sweaters-liliana/MAES26/d41232c1301add433daea006546e2c6eb8dd23e6/icon%20maes.svg" className="w-10 h-10" />
+                            </div>
                             <div>
-                                <h1 className="text-4xl font-black tracking-tighter text-white kiosk-text">MONITOR DE PLANTA</h1>
+                                <h1 className="text-3xl font-black tracking-tighter text-white leading-none">MONITOR PLANTA</h1>
                                 <div className="flex items-center gap-2 mt-1">
-                                    <span className="bg-green-500 w-3 h-3 rounded-full animate-pulse"></span>
-                                    <span className="text-sm text-green-400 font-bold tracking-widest uppercase">Sistema Remoto Activo</span>
+                                    <span className={`w-2.5 h-2.5 rounded-full ${status === 'online' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
+                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                                        {status === 'online' ? 'DATOS EN TIEMPO REAL' : 'DESCONECTADO'}
+                                    </span>
                                 </div>
                             </div>
                         </div>
-                        <div className="text-right">
-                            <h2 className="text-5xl font-black text-slate-200 tabular-nums tracking-tight">
+                        
+                        {/* Fecha y Hora */}
+                        <div className="text-right pr-4">
+                            <h2 className="text-5xl font-black text-slate-100 tabular-nums tracking-tight drop-shadow-lg">
                                 {currentTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                             </h2>
-                            <p className="text-slate-400 font-bold uppercase text-lg">{currentTime.toLocaleDateString([], {weekday:'long', day:'numeric', month:'long'})}</p>
+                            <p className="text-blue-400 font-bold uppercase text-sm tracking-wide">
+                                {currentTime.toLocaleDateString([], {weekday:'long', day:'numeric', month:'long'}).replace('.','')}
+                            </p>
                         </div>
                     </header>
 
                     {/* TABLA PRINCIPAL */}
-                    <main className="flex-1 overflow-auto no-scrollbar bg-slate-950 p-2">
+                    <main className="flex-1 overflow-auto bg-slate-950 p-0 relative">
                         <table className="w-full border-collapse">
-                            <thead className="sticky top-0 z-10 bg-slate-950 shadow-xl">
+                            <thead className="sticky top-0 z-10 bg-slate-900 shadow-xl border-b border-slate-800">
                                 <tr>
-                                    <th className="p-4 text-left border-b-2 border-slate-800 text-slate-500 font-bold uppercase text-sm w-32 bg-slate-950">Fecha</th>
-                                    {visibleMachines.map(m => {
-                                        const order = ordersData[m.id];
-                                        const hasOrder = order && (order.totalQty > 0 || (order.parts && order.parts.length > 0));
-                                        
-                                        return (
-                                            <th key={m.id} className="p-2 border-b-2 border-slate-800 min-w-[140px] bg-slate-950">
-                                                <div className="flex flex-col items-center">
-                                                    <span className="text-2xl font-black text-blue-500 mb-1">{m.name.replace('MAQ ','M-')}</span>
-                                                    {hasOrder ? (
-                                                        <span className="px-3 py-1 bg-slate-800 rounded-full text-xs font-bold text-yellow-400 border border-slate-700 truncate max-w-[120px] shadow-sm">
-                                                            {order.model}
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-xs text-slate-700 font-bold uppercase tracking-widest">Inactiva</span>
-                                                    )}
-                                                </div>
-                                            </th>
-                                        );
-                                    })}
+                                    <th className="p-2 text-left text-slate-500 font-bold uppercase text-xs w-28 bg-slate-900 border-r border-slate-800">DÍA</th>
+                                    {visibleMachines.map(m => (
+                                        <th key={m.id} className="p-3 min-w-[120px] bg-slate-900 border-r border-slate-800/50">
+                                            <span className="text-xl font-black text-slate-200 block">{m.name}</span>
+                                        </th>
+                                    ))}
                                 </tr>
                             </thead>
                             <tbody>
                                 {currentWeekRows.map((row) => {
                                     const isToday = row.isoDate === new Date().toISOString().split('T')[0];
                                     const isHidden = visibilityConfig.days?.includes(row.id);
+                                    
+                                    // Si está oculto en configuración, bajar opacidad, si es hoy, resaltar
+                                    let rowClass = "border-b border-slate-800/50 transition-colors h-28 ";
+                                    if (isToday) rowClass += "bg-blue-900/10 ";
+                                    if (isHidden) rowClass += "opacity-25 bg-slate-950 grayscale ";
 
                                     return (
-                                        <tr key={row.id} className={`border-b border-slate-800/50 ${isToday ? 'bg-blue-900/10' : ''} ${isHidden ? 'opacity-20 bg-slate-950' : ''}`}>
-                                            <td className="p-4 font-bold border-r border-slate-800/50">
-                                                <div className="flex flex-col">
-                                                    <span className="text-xs text-slate-500 uppercase tracking-widest mb-1">{row.shortDay}</span>
-                                                    <span className={`text-4xl leading-none font-black ${isToday ? 'text-blue-400' : 'text-slate-300'}`}>{row.dateNum}</span>
+                                        <tr key={row.id} className={rowClass}>
+                                            {/* Columna Fecha */}
+                                            <td className={`p-3 border-r border-slate-800/50 align-middle ${isToday ? 'bg-blue-900/20' : 'bg-slate-900/30'}`}>
+                                                <div className="flex flex-col items-center">
+                                                    <span className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">{row.shortDay}</span>
+                                                    <span className={`text-3xl leading-none font-black ${isToday ? 'text-blue-400' : 'text-slate-300'}`}>{row.dateNum}</span>
                                                 </div>
                                             </td>
-                                            
-                                            {visibleMachines.map(m => {
-                                                const metrics = getMetrics(m.id, data[row.id] || {}, row);
-                                                
-                                                let cellClass = "p-2 border-r border-slate-800/30 text-center relative h-24 align-middle transition-all duration-500 ";
-                                                let content = <span className="text-slate-800 text-2xl font-bold">-</span>;
 
-                                                if (metrics.isPlanned) {
-                                                    if (metrics.status === 'critical') {
-                                                        cellClass += "animate-critical";
-                                                        content = (
-                                                            <div className="flex flex-col items-center justify-center h-full">
-                                                                <i data-lucide="alert-triangle" className="w-8 h-8 mb-1"></i>
-                                                                <span className="text-3xl font-black">0</span>
-                                                                <span className="text-[10px] uppercase font-bold tracking-widest mt-1">¡ATENCIÓN!</span>
-                                                            </div>
-                                                        );
-                                                    } else {
-                                                        let colorClass = "text-slate-400";
-                                                        let barColor = "bg-slate-600";
-                                                        
-                                                        if (metrics.status === 'excellent') { colorClass = "text-green-400"; barColor = "bg-green-500"; }
-                                                        else if (metrics.status === 'good') { colorClass = "text-yellow-400"; barColor = "bg-yellow-500"; }
-                                                        else if (metrics.status === 'low') { colorClass = "text-orange-500"; barColor = "bg-orange-600"; }
-
-                                                        content = (
-                                                            <div className="flex flex-col h-full justify-between py-2 px-1">
-                                                                <div className="flex items-baseline justify-center gap-1">
-                                                                    <span className={`text-4xl font-black ${colorClass} tracking-tighter kiosk-text`}>
-                                                                        {metrics.produced}
-                                                                    </span>
-                                                                    <span className="text-xs font-bold text-slate-600 uppercase">pzas</span>
-                                                                </div>
-                                                                
-                                                                <div className="w-full bg-slate-800 h-3 rounded-full overflow-hidden shadow-inner border border-slate-700/50">
-                                                                    <div 
-                                                                        className={`h-full ${barColor} shadow-[0_0_10px_rgba(0,0,0,0.5)]`} 
-                                                                        style={{width: `${metrics.efficiency}%`}}
-                                                                    ></div>
-                                                                </div>
-                                                                
-                                                                <div className="flex justify-between items-center px-1 mt-1">
-                                                                    <span className="text-[10px] font-bold text-slate-500 uppercase">Meta: {metrics.target}</span>
-                                                                    <span className={`text-sm font-bold ${colorClass}`}>{metrics.efficiency.toFixed(0)}%</span>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    }
-                                                }
-
-                                                return <td key={m.id} className={cellClass}>{content}</td>;
-                                            })}
+                                            {/* Columnas Máquinas */}
+                                            {visibleMachines.map(m => (
+                                                <td key={m.id} className="border-r border-slate-800/30 align-middle p-0 hover:bg-slate-900/40 transition-colors relative">
+                                                    <SmartCell machineId={m.id} rowData={data[row.id]} />
+                                                </td>
+                                            ))}
                                         </tr>
                                     );
                                 })}
                             </tbody>
                         </table>
                     </main>
-
-                    {/* FOOTER (SOLO INDICADOR DE CONTROL REMOTO) */}
-                    <footer className="fixed bottom-4 right-4 z-30 opacity-80">
-                        <div className="flex bg-slate-900 rounded-full p-2 px-6 border border-slate-700 shadow-xl items-center gap-3">
-                            <i data-lucide="wifi" className="w-5 h-5 text-green-500 animate-pulse"></i>
-                            <span className="font-bold text-slate-300 uppercase tracking-widest">{weekLabel}</span>
+                    
+                    {/* Barra Inferior Informativa */}
+                    <div className="bg-slate-900 border-t border-slate-800 p-2 flex justify-between items-center text-[10px] text-slate-500 px-4 shrink-0">
+                        <div>MAES v26.0 - LITE MODE</div>
+                        <div className="flex gap-4">
+                            <span className="flex items-center gap-1"><div className="w-2 h-2 bg-slate-700 rounded-full"></div> Meta: Campo MOD</span>
+                            <span className="flex items-center gap-1"><div className="w-2 h-2 bg-slate-700 rounded-full"></div> Real: Campo CANT</span>
                         </div>
-                    </footer>
+                    </div>
                 </div>
             );
         };
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<Dashboard />);
-        // Inicializar iconos
-        lucide.createIcons();
     </script>
 </body>
 </html>
