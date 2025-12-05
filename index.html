@@ -7,7 +7,7 @@
 
     <link rel="icon" href="https://raw.githubusercontent.com/sweaters-liliana/MAES26/d41232c1301add433daea006546e2c6eb8dd23e6/icon%20maes.svg">
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -31,7 +31,6 @@
         @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         .kiosk-text { text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
         
-        /* Smooth scrolling para la tabla */
         main { scroll-behavior: smooth; }
     </style>
 </head>
@@ -106,14 +105,12 @@
             const [ordersData, setOrdersData] = useState({});
             const [visibilityConfig, setVisibilityConfig] = useState({ machines: [], days: [] });
             
-            // Estados de Navegación Remota
             const [weekOffset, setWeekOffset] = useState(INITIAL_WEEK);
-            const [scrollLevel, setScrollLevel] = useState(0); // Nuevo estado para scroll
+            const [scrollLevel, setScrollLevel] = useState(0); 
             
             const [loading, setLoading] = useState(true);
             const [currentTime, setCurrentTime] = useState(new Date());
             
-            // Referencia para hacer scroll
             const mainTableRef = useRef(null);
 
             useEffect(() => {
@@ -124,9 +121,8 @@
             // Efecto para aplicar el Scroll cuando cambia scrollLevel
             useEffect(() => {
                 if (mainTableRef.current) {
-                    // Cada nivel de scroll baja 150 pixeles (aprox 1.5 filas)
                     mainTableRef.current.scrollTo({
-                        top: scrollLevel * 150,
+                        top: scrollLevel * 150, // 150px por cada paso
                         behavior: 'smooth'
                     });
                 }
@@ -147,13 +143,12 @@
                             setLoading(false);
                         });
                         
-                        // LISTENER DE NAVEGACIÓN COMPLETA
                         const unsubNav = onSnapshot(doc(db, 'settings', 'navigation'), (docSnap) => {
                             if (docSnap.exists()) {
                                 const navData = docSnap.data();
                                 const remoteDelta = navData.weekOffset || 0;
                                 setWeekOffset(INITIAL_WEEK + remoteDelta);
-                                setScrollLevel(navData.scrollLevel || 0); // Actualizar scroll
+                                setScrollLevel(navData.scrollLevel || 0);
                             }
                         });
 
@@ -178,18 +173,16 @@
                 return `${f.month} ${f.year}`;
             }, [currentWeekRows]);
 
+            // Función de métricas (sin cambios)
             const getMetrics = (machineId, rowData, dateRow) => {
                 const order = ordersData[machineId];
                 const slots = rowData[machineId]?.slots || [];
                 const produced = slots.reduce((acc, s) => acc + (Number(s?.qty) || 0), 0);
-                
                 const result = { produced, status: 'idle', efficiency: 0, target: 0, isPlanned: false };
-
                 if (order && order.startDate) {
                     const isHiddenDay = visibilityConfig.days?.includes(dateRow.id);
                     const isDisabledDate = (order.disabledDates || []).includes(dateRow.isoDate);
                     const isStarted = dateRow.isoDate >= order.startDate;
-                    
                     if (isStarted && !isHiddenDay && !isDisabledDate) {
                         result.isPlanned = true;
                         const dailyHours = order.dailyHours || 24; 
@@ -198,16 +191,10 @@
                             result.target = Math.floor((dailyHours * 60) / timePerPiece);
                             result.efficiency = Math.min(100, (produced / result.target) * 100);
                         }
-
-                        if (produced === 0) {
-                            result.status = 'critical'; 
-                        } else if (result.efficiency >= 90) {
-                            result.status = 'excellent'; 
-                        } else if (result.efficiency >= 70) {
-                            result.status = 'good';
-                        } else {
-                            result.status = 'low'; 
-                        }
+                        if (produced === 0) { result.status = 'critical'; } 
+                        else if (result.efficiency >= 90) { result.status = 'excellent'; } 
+                        else if (result.efficiency >= 70) { result.status = 'good'; } 
+                        else { result.status = 'low'; } 
                     }
                 }
                 return result;
@@ -221,6 +208,10 @@
                     </div>
                 </div>
             );
+
+            // Determinar si hay scroll activo para el indicador visual
+            const isScrolled = scrollLevel > 0;
+            const scrollIndicatorIcon = scrollLevel === 0 ? 'chevrons-up' : (scrollLevel >= 10 ? 'chevrons-down' : 'minus');
 
             return (
                 <div className="flex flex-col h-screen bg-slate-950 text-white fade-in select-none">
@@ -244,7 +235,7 @@
                         </div>
                     </header>
 
-                    {/* TABLA PRINCIPAL - REFERENCIA AGREGADA AQUÍ */}
+                    {/* TABLA PRINCIPAL */}
                     <main ref={mainTableRef} className="flex-1 overflow-auto no-scrollbar bg-slate-950 p-2 scroll-smooth">
                         <table className="w-full border-collapse">
                             <thead className="sticky top-0 z-10 bg-slate-950 shadow-xl">
@@ -326,10 +317,32 @@
                         </table>
                     </main>
 
-                    <footer className="fixed bottom-4 right-4 z-30 opacity-80">
-                        <div className="flex bg-slate-900 rounded-full p-2 px-6 border border-slate-700 shadow-xl items-center gap-3">
-                            <i data-lucide="wifi" className="w-5 h-5 text-green-500 animate-pulse"></i>
-                            <span className="font-bold text-slate-300 uppercase tracking-widest">{weekLabel}</span>
+                    {/* FOOTER MEJORADO con indicadores */}
+                    <footer className="fixed bottom-4 right-4 z-30 opacity-90">
+                        <div className="flex bg-slate-900 rounded-full p-2 px-4 border border-slate-700 shadow-xl items-center gap-4">
+                            
+                            {/* Indicador de Máquinas Visibles */}
+                            <div className="flex items-center gap-1 text-xs font-bold text-slate-500">
+                                <i data-lucide="monitor" className="w-4 h-4 text-blue-400"></i>
+                                MÁQ: <span className="text-green-400 font-black">{visibleMachines.length}/{MACHINES.length}</span>
+                            </div>
+
+                            <span className="text-slate-700">|</span>
+
+                            {/* Indicador de Semana */}
+                            <div className="flex items-center gap-1">
+                                <i data-lucide="calendar" className="w-4 h-4 text-blue-400"></i>
+                                <span className="font-bold text-slate-300 uppercase tracking-widest text-sm">{weekLabel}</span>
+                            </div>
+                            
+                            <span className="text-slate-700">|</span>
+
+                            {/* Indicador de Scroll */}
+                            <div className="flex items-center gap-1 text-sm">
+                                <i data-lucide={scrollIndicatorIcon} className={`w-4 h-4 transition-all duration-500 ${isScrolled ? 'text-yellow-400' : 'text-slate-600'}`}></i>
+                                <span className="font-bold text-slate-500">SCROLL: {scrollLevel}</span>
+                            </div>
+
                         </div>
                     </footer>
                 </div>
