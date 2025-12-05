@@ -21,20 +21,13 @@
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         .kiosk-text { text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
         
-        /* Estilos Notas */
-        .note-icon { position: absolute; top: 4px; right: 4px; z-index: 10; filter: drop-shadow(1px 1px 2px rgba(0,0,0,0.5)); }
-        .note-tooltip { opacity: 0; visibility: hidden; transition: all 0.2s; position: absolute; top: 100%; right: 0; z-index: 50; width: 150px; padding: 8px; border-radius: 6px; font-size: 11px; font-weight: bold; pointer-events: none; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5); }
-        .has-note:hover .note-tooltip { opacity: 1; visibility: visible; top: 25px; }
-        
-        /* Colores Notas */
-        .note-bg-yellow { background-color: #facc15; color: black; }
-        .note-text-yellow { color: #facc15; }
-        .note-bg-red { background-color: #ef4444; color: white; }
-        .note-text-red { color: #ef4444; }
-        .note-bg-blue { background-color: #3b82f6; color: white; }
-        .note-text-blue { color: #3b82f6; }
-        .note-bg-green { background-color: #22c55e; color: white; }
-        .note-text-green { color: #22c55e; }
+        /* --- ESTILOS DE NOTAS PARA VISIBILIDAD CONSTANTE --- */
+        /* Colores de fondo de las notas (coinciden con el control) */
+        .bg-n-yellow { background-color: #facc15; color: black; }
+        .bg-n-red { background-color: #ef4444; color: white; }
+        .bg-n-blue { background-color: #3b82f6; color: white; }
+        .bg-n-green { background-color: #22c55e; color: white; }
+        .bg-n-purple { background-color: #a855f7; color: white; }
     </style>
 </head>
 <body>
@@ -102,11 +95,11 @@
             return foundIndex !== -1 ? Math.floor(foundIndex / 7) : 0;
         })();
 
-        // --- COMPONENTE DE CELDA ---
+        // --- COMPONENTE DE CELDA INTELIGENTE (PRODUCCIÓN + NOTAS VISIBLES) ---
         const SmartCell = ({ machineId, rowData }) => {
             const mData = rowData?.[machineId] || {};
             const slots = mData.slots || [];
-            const note = mData.note; // Objeto de nota: {text, color, visible}
+            const note = mData.note; 
 
             let totalTarget = 0;
             let totalProduced = 0;
@@ -133,37 +126,42 @@
             else if (efficiency >= 70) { color = "text-yellow-400"; barColor = "bg-yellow-500"; }
             else { color = "text-red-400"; barColor = "bg-red-500"; }
 
+            // Si no hay datos, pero sí hay nota visible, mostramos solo la nota.
             if (!hasActivity && totalTarget === 0 && totalProduced === 0 && (!note || !note.visible)) {
-                return <div className="h-full w-full flex items-center justify-center opacity-10"><span className="text-2xl font-bold text-slate-700">-</span></div>;
+                return <div className="h-full w-full flex items-center justify-center opacity-5"><span className="text-2xl font-bold text-slate-700">-</span></div>;
             }
 
-            return (
-                <div className={`flex flex-col h-full justify-center px-1 py-2 relative ${note && note.visible ? 'has-note' : ''}`}>
-                    
-                    {/* ICONO DE NOTA (Si existe y visible) */}
-                    {note && note.visible && (
-                        <>
-                            <div className={`note-icon note-text-${note.color || 'yellow'}`}>
-                                <i data-lucide="sticky-note" className="w-5 h-5 fill-current"></i>
-                            </div>
-                            <div className={`note-tooltip note-bg-${note.color || 'yellow'}`}>
-                                {note.text}
-                            </div>
-                        </>
-                    )}
+            // Si hay nota visible, la mostramos en un formato grande y centrado.
+            if (note && note.visible) {
+                return (
+                    <div className={`h-full w-full flex flex-col items-center justify-center p-2 bg-n-${note.color || 'yellow'} transition-colors`}>
+                        <i data-lucide="sticky-note" className="w-6 h-6 mb-1"></i>
+                        <span className="text-sm font-black uppercase text-center leading-tight">{note.text || 'NOTA'}</span>
+                        {/* Pequeño texto si hay producción además de la nota */}
+                        {(totalProduced > 0 || totalTarget > 0) && (
+                            <span className="text-[8px] mt-1 opacity-70">
+                                {`PROD: ${totalProduced} / META: ${totalTarget}`}
+                            </span>
+                        )}
+                    </div>
+                );
+            }
 
+            // Si no hay nota, mostramos la producción normal
+            return (
+                <div className={`flex flex-col h-full justify-center px-1 py-2 relative`}>
                     <div className="flex items-baseline justify-center gap-1 mb-1">
-                        <span className={`text-4xl font-black ${color} kiosk-text tracking-tighter`}>
+                        <span className={`text-3xl font-black ${color} kiosk-text tracking-tighter`}>
                             {totalProduced}
                         </span>
                     </div>
 
-                    <div className="w-full bg-slate-800 h-4 rounded-sm overflow-hidden border border-slate-700/50 mb-1">
+                    <div className="w-full bg-slate-800 h-3 rounded-sm overflow-hidden border border-slate-700/50 mb-1">
                         <div className={`h-full ${barColor} transition-all duration-700 ease-out`} style={{width: `${Math.min(100, efficiency)}%`}}></div>
                     </div>
 
-                    <div className="flex justify-between items-center text-xs font-bold px-1">
-                        <span className="text-slate-500 uppercase tracking-wide">META: <span className="text-slate-300">{totalTarget}</span></span>
+                    <div className="flex justify-between items-center text-[10px] font-bold px-1">
+                        <span className="text-slate-500 uppercase">META: <span className="text-slate-300">{totalTarget}</span></span>
                         <span className={color}>{efficiency.toFixed(0)}%</span>
                     </div>
                 </div>
@@ -198,10 +196,14 @@
                         const unsubSettings = onSnapshot(doc(db, 'settings', 'visibility'), (docSnap) => { 
                             if (docSnap.exists()) setVisibilityConfig(docSnap.data()); 
                         });
+                        // Este es el listener clave para el control remoto de navegación
                         const unsubNav = onSnapshot(doc(db, 'settings', 'navigation'), (docSnap) => {
                             if (docSnap.exists()) {
                                 const navData = docSnap.data();
+                                // Se calcula la semana a mostrar basada en la semana inicial + el delta del control
                                 if (navData.weekDelta !== undefined) setWeekOffset(INITIAL_WEEK + navData.weekDelta);
+                                
+                                // Opcional: Si el control remoto envía un scrollLevel, podrías implementarlo aquí
                             }
                         });
                         return () => { unsubDb(); unsubSettings(); unsubNav(); };
@@ -220,7 +222,7 @@
                 return ALL_ROWS.slice(safeStart, safeStart + 7); 
             }, [weekOffset]);
 
-            // --- CÁLCULO DE TOTALES ---
+            // --- CÁLCULO DE TOTALES (SUMAS) ---
             const totals = useMemo(() => {
                 const machineTotals = {};
                 let grandTotalProduced = 0;
@@ -278,10 +280,10 @@
                         </div>
                     </header>
 
-                    {/* TABLA */}
+                    {/* TABLA PRINCIPAL */}
                     <main className="flex-1 overflow-auto bg-slate-950 p-0 relative">
                         <table className="w-full border-collapse">
-                            <thead className="sticky top-0 z-20 bg-slate-900 shadow-xl border-b border-slate-800">
+                            <thead className="sticky top-0 z-30 bg-slate-900 shadow-xl border-b border-slate-800">
                                 <tr>
                                     <th className="p-2 text-left text-slate-500 font-bold uppercase text-[10px] w-24 bg-slate-900 border-r border-slate-800">DÍA</th>
                                     {visibleMachines.map(m => (
@@ -295,7 +297,7 @@
                                 {currentWeekRows.map((row) => {
                                     const isToday = row.isoDate === new Date().toISOString().split('T')[0];
                                     const isHidden = visibilityConfig.days?.includes(row.id);
-                                    let rowClass = "border-b border-slate-800/50 transition-colors h-28 ";
+                                    let rowClass = "border-b border-slate-800/50 transition-colors h-24 ";
                                     if (isToday) rowClass += "bg-blue-900/10 ";
                                     if (isHidden) rowClass += "opacity-25 bg-slate-950 grayscale ";
 
@@ -308,7 +310,7 @@
                                                 </div>
                                             </td>
                                             {visibleMachines.map(m => (
-                                                <td key={m.id} className="border-r border-slate-800/30 align-middle p-0 hover:bg-slate-900/40 transition-colors relative">
+                                                <td key={m.id} className="border-r border-slate-800/30 align-middle p-0 relative">
                                                     <SmartCell machineId={m.id} rowData={data[row.id]} />
                                                 </td>
                                             ))}
@@ -316,17 +318,18 @@
                                     );
                                 })}
                             </tbody>
-                            {/* FOOTER DE LA TABLA: SUMAS POR COLUMNA */}
-                            <tfoot className="sticky bottom-0 z-20 bg-slate-900/95 backdrop-blur shadow-[0_-5px_15px_rgba(0,0,0,0.5)] border-t-2 border-slate-700">
+                            
+                            {/* PIE DE TABLA: SUMAS POR MÁQUINA */}
+                            <tfoot className="sticky bottom-0 z-30 bg-slate-900/95 backdrop-blur shadow-[0_-5px_15px_rgba(0,0,0,0.5)] border-t-2 border-slate-700">
                                 <tr>
-                                    <td className="p-2 text-center border-r border-slate-700 bg-slate-800 text-cyan-400 font-black text-xs">TOTAL SEMANA</td>
+                                    <td className="p-2 text-center border-r border-slate-700 bg-slate-800 text-cyan-400 font-black text-xs h-16">TOTAL SEMANA</td>
                                     {visibleMachines.map(m => {
                                         const t = totals.machineTotals[m.id];
                                         return (
                                             <td key={m.id} className="p-2 text-center border-r border-slate-700/50">
-                                                <div className="flex flex-col">
+                                                <div className="flex flex-col items-center justify-center">
                                                     <span className="text-xl font-black text-white leading-none">{t.produced}</span>
-                                                    <span className="text-[10px] text-slate-400 font-bold">Meta: {t.target}</span>
+                                                    <span className="text-[9px] text-slate-400 font-bold mt-1 bg-slate-800 px-2 py-0.5 rounded-full">Meta: {t.target}</span>
                                                 </div>
                                             </td>
                                         );
@@ -336,28 +339,31 @@
                         </table>
                     </main>
                     
-                    {/* BARRA INFERIOR: TOTALES GLOBALES */}
-                    <div className="bg-slate-950 border-t border-slate-800 p-2 px-6 flex justify-between items-center shrink-0 h-14">
-                        <div className="text-[10px] text-slate-600 font-mono">MAES26 LITE</div>
+                    {/* BARRA INFERIOR FIJA: TOTALES GLOBALES */}
+                    <div className="bg-slate-950 border-t border-slate-800 px-6 py-2 flex justify-between items-center shrink-0 h-16 z-40">
+                        <div className="flex flex-col">
+                            <span className="text-xs font-bold text-slate-500">RESUMEN GLOBAL</span>
+                            <span className="text-[9px] text-slate-600 font-mono">SEMANA ACTUAL</span>
+                        </div>
                         
                         <div className="flex gap-8 items-center">
                             {/* Total Producido Global */}
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-4 bg-slate-900/50 p-2 rounded-xl border border-slate-800">
                                 <div className="text-right">
-                                    <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">PRODUCCIÓN TOTAL</div>
-                                    <div className="text-2xl font-black text-white leading-none">{totals.grandTotalProduced}</div>
+                                    <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">PRODUCCIÓN</div>
+                                    <div className="text-3xl font-black text-white leading-none">{totals.grandTotalProduced}</div>
                                 </div>
-                                <div className="h-8 w-[1px] bg-slate-800"></div>
+                                <div className="h-8 w-[1px] bg-slate-700"></div>
                                 <div className="text-right">
-                                    <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">META TOTAL</div>
-                                    <div className="text-xl font-bold text-slate-400 leading-none">{totals.grandTotalTarget}</div>
+                                    <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">META TOTAL</div>
+                                    <div className="text-2xl font-bold text-slate-400 leading-none">{totals.grandTotalTarget}</div>
                                 </div>
                             </div>
 
                             {/* Eficiencia Global */}
-                            <div className="bg-slate-900 px-4 py-1 rounded-lg border border-slate-800 flex items-center gap-3">
-                                <span className="text-[10px] text-slate-500 font-bold uppercase">EFICIENCIA GLOBAL</span>
-                                <span className={`text-2xl font-black ${globalEfficiency >= 90 ? 'text-green-500' : globalEfficiency >= 70 ? 'text-yellow-500' : 'text-red-500'}`}>
+                            <div className="bg-gradient-to-r from-slate-900 to-slate-800 px-6 py-2 rounded-xl border border-slate-700 flex flex-col items-center justify-center shadow-lg">
+                                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-1">EFICIENCIA PLANTA</span>
+                                <span className={`text-3xl font-black ${globalEfficiency >= 90 ? 'text-green-500' : globalEfficiency >= 70 ? 'text-yellow-500' : 'text-red-500'}`}>
                                     {globalEfficiency.toFixed(1)}%
                                 </span>
                             </div>
