@@ -17,12 +17,24 @@
         body { background-color: #020617; color: #e2e8f0; overflow: hidden; font-family: sans-serif; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        
         .fade-in { animation: fadeIn 0.8s ease-out; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        
         .kiosk-text { text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
-        .glass-panel { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+        
+        /* Estilos Notas */
+        .note-icon { position: absolute; top: 4px; right: 4px; z-index: 10; filter: drop-shadow(1px 1px 2px rgba(0,0,0,0.5)); }
+        .note-tooltip { opacity: 0; visibility: hidden; transition: all 0.2s; position: absolute; top: 100%; right: 0; z-index: 50; width: 150px; padding: 8px; border-radius: 6px; font-size: 11px; font-weight: bold; pointer-events: none; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5); }
+        .has-note:hover .note-tooltip { opacity: 1; visibility: visible; top: 25px; }
+        
+        /* Colores Notas */
+        .note-bg-yellow { background-color: #facc15; color: black; }
+        .note-text-yellow { color: #facc15; }
+        .note-bg-red { background-color: #ef4444; color: white; }
+        .note-text-red { color: #ef4444; }
+        .note-bg-blue { background-color: #3b82f6; color: white; }
+        .note-text-blue { color: #3b82f6; }
+        .note-bg-green { background-color: #22c55e; color: white; }
+        .note-text-green { color: #22c55e; }
     </style>
 </head>
 <body>
@@ -34,24 +46,21 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
         import { getFirestore, collection, doc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
-        const { useState, useEffect, useMemo, useRef } = React;
+        const { useState, useEffect, useMemo } = React;
 
-        // Configuración Firebase (Misma que usas actualmente)
         const firebaseConfig = {
             apiKey: "AIzaSyBqHgV4vDat1-VmZfKbiPg7nuiX-ROcexw",
             authDomain: "cirineo-cec21.firebaseapp.com",
             projectId: "cirineo-cec21",
             storageBucket: "cirineo-cec21.firebasestorage.app",
             messagingSenderId: "620210618284",
-            appId: "1:620210618284:web:482bab9bf74650fff18409",
-            measurementId: "G-B7YLM78RVW"
+            appId: "1:620210618284:web:482bab9bf74650fff18409"
         };
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // Lista de Máquinas
         const MACHINES = [
             { id: 'm35', name: 'M-35' }, { id: 'm39', name: 'M-39' },
             { id: 'm40', name: 'M-40' }, { id: 'm36', name: 'M-36' },
@@ -65,7 +74,6 @@
             { id: 'm8',  name: 'M-08' },
         ];
 
-        // Generador de Calendario (Igual que Control Total para coincidir IDs)
         const generateCalendar = () => {
             const dates = [];
             const months = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
@@ -75,7 +83,6 @@
             for (let d = start; d <= end; d.setDate(d.getDate() + 1)) {
                 dates.push({
                     index: idx++,
-                    // ID exacto que usa la base de datos
                     id: `${['DOMINGO','LUNES','MARTES','MIERCOLES','JUEVES','VIERNES','SABADO'][d.getDay()]} ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`,
                     shortDay: ['DOM', 'LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB'][d.getDay()],
                     dateNum: d.getDate(),
@@ -89,79 +96,72 @@
 
         const ALL_ROWS = generateCalendar();
         
-        // Semana actual inicial
         const INITIAL_WEEK = (() => {
             const todayISO = new Date().toISOString().split('T')[0];
             const foundIndex = ALL_ROWS.findIndex(r => r.isoDate === todayISO);
             return foundIndex !== -1 ? Math.floor(foundIndex / 7) : 0;
         })();
 
-        // --- COMPONENTE DE CELDA INTELIGENTE ---
+        // --- COMPONENTE DE CELDA ---
         const SmartCell = ({ machineId, rowData }) => {
-            // Lógica Simplificada:
-            // 1. Extraemos los slots (turnos) de la máquina para ese día
             const mData = rowData?.[machineId] || {};
-            const slots = mData.slots || []; // Array de slots [0,1,2,3]
+            const slots = mData.slots || [];
+            const note = mData.note; // Objeto de nota: {text, color, visible}
 
-            // 2. Calculamos Meta y Real sumando los slots
             let totalTarget = 0;
             let totalProduced = 0;
             let hasActivity = false;
 
             slots.forEach(slot => {
                 if (!slot) return;
-                
-                // META: Viene del campo 'model' (MOD). Si no es número, es 0.
                 const targetVal = parseFloat(slot.model);
                 if (!isNaN(targetVal)) totalTarget += targetVal;
-
-                // REAL: Viene del campo 'qty' (CANT).
                 const qtyVal = parseFloat(slot.qty);
                 if (!isNaN(qtyVal)) {
                     totalProduced += qtyVal;
-                    // Si hay producción registrada, marcamos actividad
                     if (qtyVal > 0) hasActivity = true;
                 }
-                
-                // Si escribieron Meta pero no Real, también es actividad (planificada)
                 if (!isNaN(targetVal) && targetVal > 0) hasActivity = true;
             });
 
-            // Si no hay nada escrito en MOD ni en CANT, mostrar celda vacía
-            if (!hasActivity && totalTarget === 0 && totalProduced === 0) {
-                return <div className="h-full w-full flex items-center justify-center opacity-10"><span className="text-2xl font-bold text-slate-700">-</span></div>;
-            }
-
-            // Cálculo de Eficiencia Simple
             const efficiency = totalTarget > 0 ? (totalProduced / totalTarget) * 100 : 0;
             
-            // Colores según eficiencia
             let color = "text-slate-400";
             let barColor = "bg-slate-600";
-            
             if (efficiency >= 100) { color = "text-green-400"; barColor = "bg-green-500"; }
             else if (efficiency >= 90) { color = "text-blue-400"; barColor = "bg-blue-500"; }
             else if (efficiency >= 70) { color = "text-yellow-400"; barColor = "bg-yellow-500"; }
             else { color = "text-red-400"; barColor = "bg-red-500"; }
 
+            if (!hasActivity && totalTarget === 0 && totalProduced === 0 && (!note || !note.visible)) {
+                return <div className="h-full w-full flex items-center justify-center opacity-10"><span className="text-2xl font-bold text-slate-700">-</span></div>;
+            }
+
             return (
-                <div className="flex flex-col h-full justify-center px-1 py-2">
-                    {/* Número Grande (Producido) */}
+                <div className={`flex flex-col h-full justify-center px-1 py-2 relative ${note && note.visible ? 'has-note' : ''}`}>
+                    
+                    {/* ICONO DE NOTA (Si existe y visible) */}
+                    {note && note.visible && (
+                        <>
+                            <div className={`note-icon note-text-${note.color || 'yellow'}`}>
+                                <i data-lucide="sticky-note" className="w-5 h-5 fill-current"></i>
+                            </div>
+                            <div className={`note-tooltip note-bg-${note.color || 'yellow'}`}>
+                                {note.text}
+                            </div>
+                        </>
+                    )}
+
                     <div className="flex items-baseline justify-center gap-1 mb-1">
                         <span className={`text-4xl font-black ${color} kiosk-text tracking-tighter`}>
                             {totalProduced}
                         </span>
                     </div>
 
-                    {/* Barra de Progreso */}
                     <div className="w-full bg-slate-800 h-4 rounded-sm overflow-hidden border border-slate-700/50 mb-1">
-                        <div 
-                            className={`h-full ${barColor} transition-all duration-700 ease-out shadow-[0_0_15px_rgba(0,0,0,0.5)]`} 
-                            style={{width: `${Math.min(100, efficiency)}%`}}
-                        ></div>
+                        <div className={`h-full ${barColor} transition-all duration-700 ease-out`} style={{width: `${Math.min(100, efficiency)}%`}}></div>
                     </div>
 
-                    {/* Meta y Porcentaje */}
                     <div className="flex justify-between items-center text-xs font-bold px-1">
                         <span className="text-slate-500 uppercase tracking-wide">META: <span className="text-slate-300">{totalTarget}</span></span>
                         <span className={color}>{efficiency.toFixed(0)}%</span>
@@ -175,62 +175,43 @@
             const [weekOffset, setWeekOffset] = useState(INITIAL_WEEK);
             const [visibilityConfig, setVisibilityConfig] = useState({ machines: [], days: [] });
             const [currentTime, setCurrentTime] = useState(new Date());
-            const [status, setStatus] = useState('connecting'); // connecting, online, offline
+            const [status, setStatus] = useState('connecting');
 
-            // Reloj
             useEffect(() => {
                 const timer = setInterval(() => setCurrentTime(new Date()), 1000);
                 return () => clearInterval(timer);
             }, []);
 
-            // Iconos
-            useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [data, weekOffset]);
+            useEffect(() => { if (window.lucide) window.lucide.createIcons(); });
 
-            // Conexión Firebase Robustecida
             useEffect(() => {
                 const unsubAuth = onAuthStateChanged(auth, (u) => {
                     if (u) {
                         setStatus('online');
-                        
-                        // 1. Escuchar DATOS DE PRODUCCIÓN (Colección Completa)
-                        // Usamos 'produccion_2026' porque ahí es donde están los slots con el texto "MOD"
-                        const unsubDb = onSnapshot(collection(db, 'produccion_2026'), 
-                            (snap) => { 
+                        const unsubDb = onSnapshot(collection(db, 'produccion_2026'), (snap) => { 
                                 const d = {}; 
                                 snap.forEach(doc => d[doc.id] = doc.data()); 
                                 setData(d); 
                             },
-                            (error) => {
-                                console.error("Error BD:", error);
-                                setStatus('offline');
-                            }
+                            () => setStatus('offline')
                         );
-
-                        // 2. Escuchar Configuración de Visibilidad (Opcional, para ocultar máquinas)
                         const unsubSettings = onSnapshot(doc(db, 'settings', 'visibility'), (docSnap) => { 
                             if (docSnap.exists()) setVisibilityConfig(docSnap.data()); 
                         });
-                        
-                        // 3. Escuchar Navegación Remota (Opcional)
                         const unsubNav = onSnapshot(doc(db, 'settings', 'navigation'), (docSnap) => {
                             if (docSnap.exists()) {
                                 const navData = docSnap.data();
                                 if (navData.weekDelta !== undefined) setWeekOffset(INITIAL_WEEK + navData.weekDelta);
                             }
                         });
-
                         return () => { unsubDb(); unsubSettings(); unsubNav(); };
                     } else {
-                        signInAnonymously(auth).catch(e => {
-                            console.error("Auth Error", e);
-                            setStatus('offline');
-                        });
+                        signInAnonymously(auth).catch(() => setStatus('offline'));
                     }
                 });
                 return () => unsubAuth();
             }, []);
 
-            // Filtros de datos
             const visibleMachines = useMemo(() => MACHINES.filter(m => !visibilityConfig.machines?.includes(m.id)), [visibilityConfig.machines]);
             
             const currentWeekRows = useMemo(() => { 
@@ -239,53 +220,73 @@
                 return ALL_ROWS.slice(safeStart, safeStart + 7); 
             }, [weekOffset]);
 
-            const weekLabel = useMemo(() => {
-                if (!currentWeekRows.length) return '';
-                const f = currentWeekRows[0];
-                return `${f.month} ${f.year}`;
-            }, [currentWeekRows]);
+            // --- CÁLCULO DE TOTALES ---
+            const totals = useMemo(() => {
+                const machineTotals = {};
+                let grandTotalProduced = 0;
+                let grandTotalTarget = 0;
 
-            // Renderizado
+                visibleMachines.forEach(m => {
+                    let mProd = 0;
+                    let mTarget = 0;
+                    currentWeekRows.forEach(row => {
+                        const mData = data[row.id]?.[m.id];
+                        if (mData?.slots) {
+                            mData.slots.forEach(s => {
+                                if (s) {
+                                    mProd += parseFloat(s.qty) || 0;
+                                    mTarget += parseFloat(s.model) || 0;
+                                }
+                            });
+                        }
+                    });
+                    machineTotals[m.id] = { produced: mProd, target: mTarget };
+                    grandTotalProduced += mProd;
+                    grandTotalTarget += mTarget;
+                });
+
+                return { machineTotals, grandTotalProduced, grandTotalTarget };
+            }, [data, currentWeekRows, visibleMachines]);
+
+            const globalEfficiency = totals.grandTotalTarget > 0 
+                ? (totals.grandTotalProduced / totals.grandTotalTarget) * 100 
+                : 0;
+
             return (
                 <div className="flex flex-col h-screen bg-slate-950 text-white fade-in select-none font-sans">
-                    
-                    {/* HEADER */}
-                    <header className="bg-slate-900 border-b border-slate-800 p-3 flex justify-between items-center shadow-2xl z-20 shrink-0 h-24">
+                    {/* Header */}
+                    <header className="bg-slate-900 border-b border-slate-800 p-2 flex justify-between items-center shadow-2xl z-20 shrink-0 h-20">
                         <div className="flex items-center gap-4 pl-2">
                             <div className="bg-blue-600 p-2 rounded-xl shadow-lg shadow-blue-900/50">
-                                <img src="https://raw.githubusercontent.com/sweaters-liliana/MAES26/d41232c1301add433daea006546e2c6eb8dd23e6/icon%20maes.svg" className="w-10 h-10" />
+                                <img src="https://raw.githubusercontent.com/sweaters-liliana/MAES26/d41232c1301add433daea006546e2c6eb8dd23e6/icon%20maes.svg" className="w-8 h-8" />
                             </div>
                             <div>
-                                <h1 className="text-3xl font-black tracking-tighter text-white leading-none">MONITOR PLANTA</h1>
-                                <div className="flex items-center gap-2 mt-1">
-                                    <span className={`w-2.5 h-2.5 rounded-full ${status === 'online' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
-                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                                        {status === 'online' ? 'DATOS EN TIEMPO REAL' : 'DESCONECTADO'}
-                                    </span>
+                                <h1 className="text-2xl font-black tracking-tighter text-white leading-none">MONITOR PLANTA</h1>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                    <span className={`w-2 h-2 rounded-full ${status === 'online' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
+                                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">EN VIVO</span>
                                 </div>
                             </div>
                         </div>
-                        
-                        {/* Fecha y Hora */}
                         <div className="text-right pr-4">
-                            <h2 className="text-5xl font-black text-slate-100 tabular-nums tracking-tight drop-shadow-lg">
+                            <h2 className="text-4xl font-black text-slate-100 tabular-nums tracking-tight">
                                 {currentTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                             </h2>
-                            <p className="text-blue-400 font-bold uppercase text-sm tracking-wide">
+                            <p className="text-blue-400 font-bold uppercase text-xs tracking-wide">
                                 {currentTime.toLocaleDateString([], {weekday:'long', day:'numeric', month:'long'}).replace('.','')}
                             </p>
                         </div>
                     </header>
 
-                    {/* TABLA PRINCIPAL */}
+                    {/* TABLA */}
                     <main className="flex-1 overflow-auto bg-slate-950 p-0 relative">
                         <table className="w-full border-collapse">
-                            <thead className="sticky top-0 z-10 bg-slate-900 shadow-xl border-b border-slate-800">
+                            <thead className="sticky top-0 z-20 bg-slate-900 shadow-xl border-b border-slate-800">
                                 <tr>
-                                    <th className="p-2 text-left text-slate-500 font-bold uppercase text-xs w-28 bg-slate-900 border-r border-slate-800">DÍA</th>
+                                    <th className="p-2 text-left text-slate-500 font-bold uppercase text-[10px] w-24 bg-slate-900 border-r border-slate-800">DÍA</th>
                                     {visibleMachines.map(m => (
-                                        <th key={m.id} className="p-3 min-w-[120px] bg-slate-900 border-r border-slate-800/50">
-                                            <span className="text-xl font-black text-slate-200 block">{m.name}</span>
+                                        <th key={m.id} className="p-2 min-w-[110px] bg-slate-900 border-r border-slate-800/50">
+                                            <span className="text-lg font-black text-slate-200 block">{m.name}</span>
                                         </th>
                                     ))}
                                 </tr>
@@ -294,23 +295,18 @@
                                 {currentWeekRows.map((row) => {
                                     const isToday = row.isoDate === new Date().toISOString().split('T')[0];
                                     const isHidden = visibilityConfig.days?.includes(row.id);
-                                    
-                                    // Si está oculto en configuración, bajar opacidad, si es hoy, resaltar
                                     let rowClass = "border-b border-slate-800/50 transition-colors h-28 ";
                                     if (isToday) rowClass += "bg-blue-900/10 ";
                                     if (isHidden) rowClass += "opacity-25 bg-slate-950 grayscale ";
 
                                     return (
                                         <tr key={row.id} className={rowClass}>
-                                            {/* Columna Fecha */}
-                                            <td className={`p-3 border-r border-slate-800/50 align-middle ${isToday ? 'bg-blue-900/20' : 'bg-slate-900/30'}`}>
+                                            <td className={`p-2 border-r border-slate-800/50 align-middle ${isToday ? 'bg-blue-900/20' : 'bg-slate-900/30'}`}>
                                                 <div className="flex flex-col items-center">
-                                                    <span className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">{row.shortDay}</span>
-                                                    <span className={`text-3xl leading-none font-black ${isToday ? 'text-blue-400' : 'text-slate-300'}`}>{row.dateNum}</span>
+                                                    <span className="text-[9px] text-slate-500 uppercase font-black tracking-widest mb-1">{row.shortDay}</span>
+                                                    <span className={`text-2xl leading-none font-black ${isToday ? 'text-blue-400' : 'text-slate-300'}`}>{row.dateNum}</span>
                                                 </div>
                                             </td>
-
-                                            {/* Columnas Máquinas */}
                                             {visibleMachines.map(m => (
                                                 <td key={m.id} className="border-r border-slate-800/30 align-middle p-0 hover:bg-slate-900/40 transition-colors relative">
                                                     <SmartCell machineId={m.id} rowData={data[row.id]} />
@@ -320,15 +316,51 @@
                                     );
                                 })}
                             </tbody>
+                            {/* FOOTER DE LA TABLA: SUMAS POR COLUMNA */}
+                            <tfoot className="sticky bottom-0 z-20 bg-slate-900/95 backdrop-blur shadow-[0_-5px_15px_rgba(0,0,0,0.5)] border-t-2 border-slate-700">
+                                <tr>
+                                    <td className="p-2 text-center border-r border-slate-700 bg-slate-800 text-cyan-400 font-black text-xs">TOTAL SEMANA</td>
+                                    {visibleMachines.map(m => {
+                                        const t = totals.machineTotals[m.id];
+                                        return (
+                                            <td key={m.id} className="p-2 text-center border-r border-slate-700/50">
+                                                <div className="flex flex-col">
+                                                    <span className="text-xl font-black text-white leading-none">{t.produced}</span>
+                                                    <span className="text-[10px] text-slate-400 font-bold">Meta: {t.target}</span>
+                                                </div>
+                                            </td>
+                                        );
+                                    })}
+                                </tr>
+                            </tfoot>
                         </table>
                     </main>
                     
-                    {/* Barra Inferior Informativa */}
-                    <div className="bg-slate-900 border-t border-slate-800 p-2 flex justify-between items-center text-[10px] text-slate-500 px-4 shrink-0">
-                        <div>MAES v26.0 - LITE MODE</div>
-                        <div className="flex gap-4">
-                            <span className="flex items-center gap-1"><div className="w-2 h-2 bg-slate-700 rounded-full"></div> Meta: Campo MOD</span>
-                            <span className="flex items-center gap-1"><div className="w-2 h-2 bg-slate-700 rounded-full"></div> Real: Campo CANT</span>
+                    {/* BARRA INFERIOR: TOTALES GLOBALES */}
+                    <div className="bg-slate-950 border-t border-slate-800 p-2 px-6 flex justify-between items-center shrink-0 h-14">
+                        <div className="text-[10px] text-slate-600 font-mono">MAES26 LITE</div>
+                        
+                        <div className="flex gap-8 items-center">
+                            {/* Total Producido Global */}
+                            <div className="flex items-center gap-3">
+                                <div className="text-right">
+                                    <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">PRODUCCIÓN TOTAL</div>
+                                    <div className="text-2xl font-black text-white leading-none">{totals.grandTotalProduced}</div>
+                                </div>
+                                <div className="h-8 w-[1px] bg-slate-800"></div>
+                                <div className="text-right">
+                                    <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">META TOTAL</div>
+                                    <div className="text-xl font-bold text-slate-400 leading-none">{totals.grandTotalTarget}</div>
+                                </div>
+                            </div>
+
+                            {/* Eficiencia Global */}
+                            <div className="bg-slate-900 px-4 py-1 rounded-lg border border-slate-800 flex items-center gap-3">
+                                <span className="text-[10px] text-slate-500 font-bold uppercase">EFICIENCIA GLOBAL</span>
+                                <span className={`text-2xl font-black ${globalEfficiency >= 90 ? 'text-green-500' : globalEfficiency >= 70 ? 'text-yellow-500' : 'text-red-500'}`}>
+                                    {globalEfficiency.toFixed(1)}%
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </div>
