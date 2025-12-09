@@ -19,6 +19,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
     <script>
+        // manifest: si createObjectURL no existe (entornos raros), caemos al data: URL
         const manifest = {
             "name": "Sistema Textil Cloud",
             "short_name": "Cirineo",
@@ -32,13 +33,29 @@
                 "type": "image/png"
             }]
         };
-        const stringManifest = JSON.stringify(manifest);
-        const blob = new Blob([stringManifest], {type: 'application/json'});
-        const manifestURL = URL.createObjectURL(blob);
-        const link = document.createElement('link');
-        link.rel = 'manifest';
-        link.href = manifestURL;
-        document.head.appendChild(link);
+        (function(){
+            const stringManifest = JSON.stringify(manifest);
+            try {
+                const blob = new Blob([stringManifest], {type: 'application/json'});
+                const URLobj = window.URL || window.webkitURL;
+                let manifestURL = null;
+                if (URLobj && typeof URLobj.createObjectURL === 'function') {
+                    manifestURL = URLobj.createObjectURL(blob);
+                } else {
+                    manifestURL = 'data:application/json;charset=utf-8,' + encodeURIComponent(stringManifest);
+                }
+                const link = document.createElement('link');
+                link.rel = 'manifest';
+                link.href = manifestURL;
+                document.head.appendChild(link);
+            } catch (e) {
+                console.warn('No se pudo crear manifest blob, usando inline', e);
+                const link = document.createElement('link');
+                link.rel = 'manifest';
+                link.href = 'data:application/json;charset=utf-8,' + encodeURIComponent(stringManifest);
+                document.head.appendChild(link);
+            }
+        })();
     </script>
 
     <style>
@@ -121,10 +138,66 @@
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans">
+    <!-- Botón temporal para exportar el archivo completo -->
+    <button id="export-html-btn" style="position:fixed; bottom:20px; right:20px; z-index:99999; background:#16a34a; color:white; padding:10px 14px; border-radius:8px; font-weight:bold; box-shadow:0 2px 6px rgba(0,0,0,0.4); cursor:pointer;">EXPORTAR HTML</button>
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
+
+        // Helper: descarga un blob manejando navegadores sin createObjectURL
+        function downloadBlobSmart(blob, filename){
+            const URLobj = window.URL || window.webkitURL;
+            if (URLobj && typeof URLobj.createObjectURL === 'function'){
+                const url = URLobj.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(()=>{ try{ URLobj.revokeObjectURL(url); }catch(e){} }, 1000);
+            } else {
+                // Fallback: FileReader -> data URL
+                const reader = new FileReader();
+                reader.onload = function(e){
+                    const a = document.createElement('a');
+                    a.href = e.target.result;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                };
+                reader.readAsDataURL(blob);
+            }
+        }
+
+        // Export HTML button behavior
+        document.addEventListener('DOMContentLoaded', ()=>{
+            const btn = document.getElementById('export-html-btn');
+            if (btn) btn.addEventListener('click', ()=>{
+                try{
+                    const data = '<!doctype html>
+' + document.documentElement.outerHTML;
+                    const blob = new Blob([data], {type: 'text/html'});
+                    downloadBlobSmart(blob, 'index_exportado.html');
+                }catch(e){ console.error(e); alert('Error exportando HTML: '+e.message); }
+            });
+        });
+
+        // Error overlay helper - mostrará cualquier error runtime en pantalla para depuración rápida
+        (function(){
+            window._app_error_overlay = function(msg){ try{
+                const existing = document.getElementById('__app_error_overlay'); if(existing) existing.remove();
+                const el = document.createElement('div'); el.id='__app_error_overlay';
+                el.style.position='fixed'; el.style.zIndex=2147483647; el.style.left=0; el.style.top=0; el.style.right=0; el.style.padding='16px';
+                el.style.background='rgba(200,20,20,0.95)'; el.style.color='white'; el.style.fontFamily='monospace'; el.style.whiteSpace='pre-wrap'; el.style.fontSize='13px';
+                el.innerText = 'ERROR: ' + String(msg);
+                document.body.appendChild(el);
+            }catch(e){ console.error('No se pudo mostrar el overlay de error', e); }};
+            window.addEventListener('error', function(e){ console.error('window.error', e.error || e.message || e); setTimeout(function(){ window._app_error_overlay(e.error && (e.error.message||e.error.toString()) || e.message || e.toString()); }, 10); });
+            window.addEventListener('unhandledrejection', function(e){ console.error('unhandledrejection', e.reason); setTimeout(function(){ window._app_error_overlay(e.reason && (e.reason.message||e.reason.toString()) || String(e.reason)); }, 10); });
+        })();
         
         const firebaseConfig = {
             apiKey: "AIzaSyBqHgV4vDat1-VmZfKbiPg7nuiX-ROcexw",
@@ -153,8 +226,8 @@
             pieces.forEach(p => {
                 const total = Number(p.totalPedido) || 0;
                 const size = Number(packageSize) || total;
-                const n = Math.ceil(total / size);
-                const piecePrefix = p.pieza.substring(0, 3).toUpperCase();
+                const n = Math.ceil(total / size) || 0;
+                const piecePrefix = (p.pieza || '').substring(0, 3).toUpperCase();
 
                 for (let i = 1; i <= n; i++) {
                     const cantidad = (i === n) ? (total % size || size) : size;
@@ -522,7 +595,7 @@
             const isOrderComplete = order.progreso.every(p => p.finished);
 
             // --- FUNCIONES DE DESCARGA ---
-            const makeCSV = () => {
+            const makeCSV = async () => {
                 const cols = ['#','CODIGO','CANT','TEJEDOR','FECHA','DEF','AGJ','OK','OBSERVACIONES'];
                 const rows = order.progreso.map((p,idx)=>[
                     idx+1,
@@ -539,13 +612,10 @@
 ' + rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('
 ');
                 const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
-                const a = document.createElement('a');
-                a.href = URL.createObjectURL(blob);
-                a.download = `${order.partida || order.codigo || 'orden'}_control.csv`;
-                a.click();
+                downloadBlobSmart(blob, `${order.partida || order.codigo || 'orden'}_control.csv`);
             };
 
-            const makeExcel = () => {
+            const makeExcel = async () => {
                 // Generamos CSV pero con extensión .xls para abrir en Excel fácilmente
                 const cols = ['#','CODIGO','CANT','TEJEDOR','FECHA','DEF','AGJ','OK','OBSERVACIONES'];
                 const rows = order.progreso.map((p,idx)=>[
@@ -559,14 +629,11 @@
                     p.finished ? 'OK' : '',
                     p.observaciones || ''
                 ]);
-                let csv = cols.join('	') + '
+                let tsv = cols.join('	') + '
 ' + rows.map(r=>r.map(c=>String(c).replace(/	/g,' ')).join('	')).join('
 ');
-                const blob = new Blob([csv], {type: 'application/vnd.ms-excel'});
-                const a = document.createElement('a');
-                a.href = URL.createObjectURL(blob);
-                a.download = `${order.partida || order.codigo || 'orden'}_control.xls`;
-                a.click();
+                const blob = new Blob([tsv], {type: 'application/vnd.ms-excel'});
+                downloadBlobSmart(blob, `${order.partida || order.codigo || 'orden'}_control.xls`);
             };
 
             const makePrintableHTML = () => {
@@ -579,15 +646,16 @@
             const downloadPDF = () => {
                 const html = makePrintableHTML();
                 const w = window.open('', '_blank');
+                if(!w) return alert('El navegador bloqueó la ventana emergente, permite popups para este sitio.');
                 w.document.open();
                 w.document.write(html);
                 w.document.close();
                 // El usuario puede guardar como PDF desde la ventana emergente (Archivo -> Guardar como PDF)
             };
 
-            const downloadWord = () => {
+            const downloadWord = async () => {
                 // Generamos un archivo .doc (HTML) que Word puede abrir. Incluir imagen del repositorio si existe.
-                const repo = (config.repoUrls && config.repoUrls[0]) ? config.repoUrls[0].endsWith('/') ? config.repoUrls[0] : config.repoUrls[0] + '/' : '';
+                const repo = (config.repoUrls && config.repoUrls[0]) ? (config.repoUrls[0].endsWith('/') ? config.repoUrls[0] : config.repoUrls[0] + '/') : '';
                 const imgSrc = repo ? `${repo}${order.codigo}.jpg` : '';
                 let html = '<html><head><meta charset="utf-8"><title>Orden</title></head><body>';
                 if (imgSrc) html += `<div><img src="${imgSrc}" style="max-width:300px;display:block;margin-bottom:10px;"/></div>`;
@@ -599,10 +667,7 @@
                 html += '</tbody></table>';
                 html += '</body></html>';
                 const blob = new Blob(['﻿', html], {type: 'application/msword'});
-                const a = document.createElement('a');
-                a.href = URL.createObjectURL(blob);
-                a.download = `${order.partida || order.codigo || 'orden'}_control.doc`;
-                a.click();
+                downloadBlobSmart(blob, `${order.partida || order.codigo || 'orden'}_control.doc`);
             };
 
             return (
