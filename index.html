@@ -19,7 +19,6 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
     <script>
-        // manifest: si createObjectURL no existe (entornos raros), caemos al data: URL
         const manifest = {
             "name": "Sistema Textil Cloud",
             "short_name": "Cirineo",
@@ -33,29 +32,13 @@
                 "type": "image/png"
             }]
         };
-        (function(){
-            const stringManifest = JSON.stringify(manifest);
-            try {
-                const blob = new Blob([stringManifest], {type: 'application/json'});
-                const URLobj = window.URL || window.webkitURL;
-                let manifestURL = null;
-                if (URLobj && typeof URLobj.createObjectURL === 'function') {
-                    manifestURL = URLobj.createObjectURL(blob);
-                } else {
-                    manifestURL = 'data:application/json;charset=utf-8,' + encodeURIComponent(stringManifest);
-                }
-                const link = document.createElement('link');
-                link.rel = 'manifest';
-                link.href = manifestURL;
-                document.head.appendChild(link);
-            } catch (e) {
-                console.warn('No se pudo crear manifest blob, usando inline', e);
-                const link = document.createElement('link');
-                link.rel = 'manifest';
-                link.href = 'data:application/json;charset=utf-8,' + encodeURIComponent(stringManifest);
-                document.head.appendChild(link);
-            }
-        })();
+        const stringManifest = JSON.stringify(manifest);
+        const blob = new Blob([stringManifest], {type: 'application/json'});
+        const manifestURL = URL.createObjectURL(blob);
+        const link = document.createElement('link');
+        link.rel = 'manifest';
+        link.href = manifestURL;
+        document.head.appendChild(link);
     </script>
 
     <style>
@@ -89,21 +72,21 @@
             th, td { border: 1px solid black; word-wrap: break-word; }
             .threading-table-print { font-size: 9pt; }
             .threading-table-print th { background-color: #ddd !important; }
-            .package-table-print { font-size: 10pt; width: 100%; border: 2px solid black !important; }
+            .package-table-print { font-size: 9pt; width: 100%; border: 2px solid black !important; }
             .package-table-print th { 
                 background-color: #e5e7eb !important;
                 font-weight: 800; 
                 text-transform: uppercase; 
-                font-size: 9pt;
-                padding: 2px;
+                font-size: 7pt;
+                padding: 1px;
                 border: 1px solid black !important;
             }
             .package-table-print td { 
-                padding: 3px;
-                height: 28px; 
+                padding: 1px;
+                height: 25px; 
                 vertical-align: middle; 
                 border: 1px solid black !important;
-                font-size: 10pt; /* Aumentado para mejor legibilidad */
+                font-size: 8pt;
             }
             .package-table-print th:last-child,
             .package-table-print td:last-child {
@@ -111,18 +94,6 @@
             }
             .manual-input { color: transparent; }
             .print-only { display: block !important; }
-
-            /* NUEVOS AJUSTES SOLICITADOS */
-            /* Hacemos que el bloque de Programa/Descripción/Pieza crezca el doble hacia abajo */
-            .package-desc { min-height: 180px !important; }
-
-            /* Reducimos el área de enhebrado para compensar */
-            .threading-area { max-height: 80px !important; overflow: auto !important; }
-
-            /* Incrementamos el alto del área de imagen/producto (producción por hora/turno visual) 50% hacia arriba */
-            .product-image-area { min-height: 240px !important; display:flex; align-items:center; justify-content:center; }
-
-            .print-section-top .left-column { display: flex; flex-direction: column; gap: 8px; }
         }
 
         .print-only { display: none; }
@@ -138,66 +109,10 @@
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans">
-    <!-- Botón temporal para exportar el archivo completo -->
-    <button id="export-html-btn" style="position:fixed; bottom:20px; right:20px; z-index:99999; background:#16a34a; color:white; padding:10px 14px; border-radius:8px; font-weight:bold; box-shadow:0 2px 6px rgba(0,0,0,0.4); cursor:pointer;">EXPORTAR HTML</button>
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
-
-        // Helper: descarga un blob manejando navegadores sin createObjectURL
-        function downloadBlobSmart(blob, filename){
-            const URLobj = window.URL || window.webkitURL;
-            if (URLobj && typeof URLobj.createObjectURL === 'function'){
-                const url = URLobj.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                setTimeout(()=>{ try{ URLobj.revokeObjectURL(url); }catch(e){} }, 1000);
-            } else {
-                // Fallback: FileReader -> data URL
-                const reader = new FileReader();
-                reader.onload = function(e){
-                    const a = document.createElement('a');
-                    a.href = e.target.result;
-                    a.download = filename;
-                    document.body.appendChild(a);
-                    a.click();
-                    a.remove();
-                };
-                reader.readAsDataURL(blob);
-            }
-        }
-
-        // Export HTML button behavior
-        document.addEventListener('DOMContentLoaded', ()=>{
-            const btn = document.getElementById('export-html-btn');
-            if (btn) btn.addEventListener('click', ()=>{
-                try{
-                    const data = '<!doctype html>
-' + document.documentElement.outerHTML;
-                    const blob = new Blob([data], {type: 'text/html'});
-                    downloadBlobSmart(blob, 'index_exportado.html');
-                }catch(e){ console.error(e); alert('Error exportando HTML: '+e.message); }
-            });
-        });
-
-        // Error overlay helper - mostrará cualquier error runtime en pantalla para depuración rápida
-        (function(){
-            window._app_error_overlay = function(msg){ try{
-                const existing = document.getElementById('__app_error_overlay'); if(existing) existing.remove();
-                const el = document.createElement('div'); el.id='__app_error_overlay';
-                el.style.position='fixed'; el.style.zIndex=2147483647; el.style.left=0; el.style.top=0; el.style.right=0; el.style.padding='16px';
-                el.style.background='rgba(200,20,20,0.95)'; el.style.color='white'; el.style.fontFamily='monospace'; el.style.whiteSpace='pre-wrap'; el.style.fontSize='13px';
-                el.innerText = 'ERROR: ' + String(msg);
-                document.body.appendChild(el);
-            }catch(e){ console.error('No se pudo mostrar el overlay de error', e); }};
-            window.addEventListener('error', function(e){ console.error('window.error', e.error || e.message || e); setTimeout(function(){ window._app_error_overlay(e.error && (e.error.message||e.error.toString()) || e.message || e.toString()); }, 10); });
-            window.addEventListener('unhandledrejection', function(e){ console.error('unhandledrejection', e.reason); setTimeout(function(){ window._app_error_overlay(e.reason && (e.reason.message||e.reason.toString()) || String(e.reason)); }, 10); });
-        })();
         
         const firebaseConfig = {
             apiKey: "AIzaSyBqHgV4vDat1-VmZfKbiPg7nuiX-ROcexw",
@@ -226,8 +141,8 @@
             pieces.forEach(p => {
                 const total = Number(p.totalPedido) || 0;
                 const size = Number(packageSize) || total;
-                const n = Math.ceil(total / size) || 0;
-                const piecePrefix = (p.pieza || '').substring(0, 3).toUpperCase();
+                const n = Math.ceil(total / size);
+                const piecePrefix = p.pieza.substring(0, 3).toUpperCase();
 
                 for (let i = 1; i <= n; i++) {
                     const cantidad = (i === n) ? (total % size || size) : size;
@@ -296,7 +211,7 @@
             };
 
             const totalMinutesLeft = pendingPackages.reduce((sum, p) => sum + p.timeTotal, 0);
-            const hoursPerDay = is24Hours ? 24 : 12; // USUARIO SOLICITÓ 12 HORAS POR TURNO
+            const hoursPerDay = is24Hours ? 24 : 12;
             const daysLeft = totalMinutesLeft > 0 ? (totalMinutesLeft / 60 / hoursPerDay).toFixed(1) : 0;
             const hoursLeft = (totalMinutesLeft / 60).toFixed(1);
 
@@ -356,9 +271,8 @@
             const handleProcess = () => {
                 if (!text.trim()) return;
                 try {
-                    const delimiter = text.includes('	') ? '	' : ',';
-                    const rows = text.trim().split('
-').map(r => r.split(delimiter));
+                    const delimiter = text.includes('\t') ? '\t' : ',';
+                    const rows = text.trim().split('\n').map(r => r.split(delimiter));
                     if (rows.length < 2) throw new Error("Datos insuficientes.");
                     const headers = rows[0].map(h => h.trim().toUpperCase().replace(/"/g, ''));
                     const getVal = (row, colName) => { const idx = headers.indexOf(colName); return idx !== -1 && row[idx] ? row[idx].trim().replace(/"/g, '') : ''; };
@@ -473,7 +387,7 @@
             const [threadingData, setThreadingData] = useState(initialOrder?.threading || []);
             const predefinedPackages = initialOrder?.predefinedPackages || (initialOrder && initialOrder.packageSize === 'VARIO' ? initialOrder.progreso : null);
             const [packageSize, setPackageSize] = useState(initialOrder?.packageSize && initialOrder.packageSize !== 'VARIO' ? initialOrder.packageSize : 50);
-            const addPiece = () => setPieces([...pieces, { id: Date.now(), pieza: '', programa: '', talla: 'UNITALLA', totalPedido: '', peso: '', tiempo: '' }]);
+            const addPiece = () => setPieces([...pieces, { id: Date.now(), pieza: '', talla: 'UNITALLA', totalPedido: '', peso: '', tiempo: '' }]);
             const updatePiece = (id, f, v) => setPieces(pieces.map(p => p.id === id ? { ...p, [f]: v } : p));
             const removePiece = (id) => pieces.length > 1 && setPieces(pieces.filter(p => p.id !== id));
             const inventoryKeys = inventory ? Object.keys(inventory) : [];
@@ -546,11 +460,10 @@
                         <h3 className="font-bold text-sm mb-2 flex items-center gap-2"><Icon name="layers"/> Piezas / Detalles</h3>
                         {pieces.map((p, i) => (
                             <div key={p.id} className="grid grid-cols-12 gap-2 mb-2 items-end border-b pb-2">
-                                <div className="col-span-3"><label className="text-[10px] font-bold">Programa</label><input value={p.programa} onChange={toUppercase(e=>updatePiece(p.id,'programa',e.target.value))} className="w-full border p-1 rounded font-bold text-sm"/></div>
                                 <div className="col-span-4"><label className="text-[10px] font-bold">Nombre/Desc</label><input value={p.pieza} onChange={toUppercase(e=>updatePiece(p.id,'pieza',e.target.value))} className="w-full border p-1 rounded font-bold text-sm"/></div>
                                 <div className="col-span-2"><label className="text-[10px] font-bold">Talla</label><input value={p.talla} onChange={toUppercase(e=>updatePiece(p.id,'talla',e.target.value))} className="w-full border p-1 rounded text-xs"/></div>
-                                <div className="col-span-1"><label className="text-[10px] font-bold">Cant.</label><input type="number" value={p.totalPedido} onChange={e=>updatePiece(p.id,'totalPedido',e.target.value)} className="w-full border p-1 font-bold text-indigo-700" disabled={!!predefinedPackages}/></div>
-                                <div className="col-span-1"><label className="text-[10px] font-bold">Min/Pza</label><input type="number" value={p.tiempo} onChange={e=>updatePiece(p.id,'tiempo',e.target.value)} className="w-full border p-1 bg-yellow-50" placeholder="Calc. Tiempo"/></div>
+                                <div className="col-span-2"><label className="text-[10px] font-bold">Cant. Total</label><input type="number" value={p.totalPedido} onChange={e=>updatePiece(p.id,'totalPedido',e.target.value)} className="w-full border p-1 font-bold text-indigo-700" disabled={!!predefinedPackages}/></div>
+                                <div className="col-span-2"><label className="text-[10px] font-bold">Minutos/Pza</label><input type="number" value={p.tiempo} onChange={e=>updatePiece(p.id,'tiempo',e.target.value)} className="w-full border p-1 bg-yellow-50" placeholder="Calc. Tiempo"/></div>
                                 <div className="col-span-1 text-center"><button onClick={()=>removePiece(p.id)} className="text-red-500" disabled={!!predefinedPackages}><Icon name="x"/></button></div>
                             </div>
                         ))}
@@ -594,82 +507,6 @@
 
             const isOrderComplete = order.progreso.every(p => p.finished);
 
-            // --- FUNCIONES DE DESCARGA ---
-            const makeCSV = async () => {
-                const cols = ['#','CODIGO','CANT','TEJEDOR','FECHA','DEF','AGJ','OK','OBSERVACIONES'];
-                const rows = order.progreso.map((p,idx)=>[
-                    idx+1,
-                    (p.codigoUnico || p.piezaNombre),
-                    p.cantidad,
-                    p.finished ? p.tejedor : '',
-                    p.finished ? p.fecha : '',
-                    p.finished ? p.defectos : '',
-                    p.finished ? p.agujas : '',
-                    p.finished ? 'OK' : '',
-                    p.observaciones || ''
-                ]);
-                let csv = cols.join(',') + '
-' + rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('
-');
-                const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
-                downloadBlobSmart(blob, `${order.partida || order.codigo || 'orden'}_control.csv`);
-            };
-
-            const makeExcel = async () => {
-                // Generamos CSV pero con extensión .xls para abrir en Excel fácilmente
-                const cols = ['#','CODIGO','CANT','TEJEDOR','FECHA','DEF','AGJ','OK','OBSERVACIONES'];
-                const rows = order.progreso.map((p,idx)=>[
-                    idx+1,
-                    (p.codigoUnico || p.piezaNombre),
-                    p.cantidad,
-                    p.finished ? p.tejedor : '',
-                    p.finished ? p.fecha : '',
-                    p.finished ? p.defectos : '',
-                    p.finished ? p.agujas : '',
-                    p.finished ? 'OK' : '',
-                    p.observaciones || ''
-                ]);
-                let tsv = cols.join('	') + '
-' + rows.map(r=>r.map(c=>String(c).replace(/	/g,' ')).join('	')).join('
-');
-                const blob = new Blob([tsv], {type: 'application/vnd.ms-excel'});
-                downloadBlobSmart(blob, `${order.partida || order.codigo || 'orden'}_control.xls`);
-            };
-
-            const makePrintableHTML = () => {
-                // Creamos una versión simple del área imprimible para que el usuario pueda guardarla como PDF desde el navegador
-                const clone = document.createElement('div');
-                clone.innerHTML = document.querySelector('.print-visible-wrapper')?.innerHTML || document.body.innerHTML;
-                return `<!doctype html><html><head><meta charset="utf-8"><title>Impresión</title><style>body{font-family: Arial, Helvetica, sans-serif;margin:10px;}table{border-collapse:collapse;width:100%}th,td{border:1px solid #000;padding:4px;font-size:10pt}</style></head><body>${clone.innerHTML}</body></html>`;
-            };
-
-            const downloadPDF = () => {
-                const html = makePrintableHTML();
-                const w = window.open('', '_blank');
-                if(!w) return alert('El navegador bloqueó la ventana emergente, permite popups para este sitio.');
-                w.document.open();
-                w.document.write(html);
-                w.document.close();
-                // El usuario puede guardar como PDF desde la ventana emergente (Archivo -> Guardar como PDF)
-            };
-
-            const downloadWord = async () => {
-                // Generamos un archivo .doc (HTML) que Word puede abrir. Incluir imagen del repositorio si existe.
-                const repo = (config.repoUrls && config.repoUrls[0]) ? (config.repoUrls[0].endsWith('/') ? config.repoUrls[0] : config.repoUrls[0] + '/') : '';
-                const imgSrc = repo ? `${repo}${order.codigo}.jpg` : '';
-                let html = '<html><head><meta charset="utf-8"><title>Orden</title></head><body>';
-                if (imgSrc) html += `<div><img src="${imgSrc}" style="max-width:300px;display:block;margin-bottom:10px;"/></div>`;
-                html += `<h2>PARTIDA: ${order.partida}</h2><h3>CLIENTE: ${order.cliente}</h3><h4>MODELO: ${order.codigo}</h4>`;
-                html += '<table><thead><tr><th>#</th><th>CODIGO/PIEZA</th><th>Pzs</th><th>Tejedor</th><th>Fecha</th><th>Obs</th></tr></thead><tbody>';
-                order.progreso.forEach((p,idx)=>{
-                    html += `<tr><td>${idx+1}</td><td>${p.codigoUnico || p.piezaNombre}</td><td>${p.cantidad}</td><td>${p.finished ? p.tejedor : ''}</td><td>${p.finished ? p.fecha : ''}</td><td>${p.observaciones || ''}</td></tr>`;
-                });
-                html += '</tbody></table>';
-                html += '</body></html>';
-                const blob = new Blob(['﻿', html], {type: 'application/msword'});
-                downloadBlobSmart(blob, `${order.partida || order.codigo || 'orden'}_control.doc`);
-            };
-
             return (
                 <div className="bg-white min-h-screen relative">
                     <div className="no-print p-4 border-b flex justify-between bg-slate-50 sticky top-0 z-10 shadow-sm">
@@ -686,12 +523,6 @@
                              <button onClick={() => window.print()} className="bg-slate-900 text-white px-3 py-1 rounded font-bold text-xs flex items-center gap-1 hover:bg-slate-700">
                                  <Icon name="printer"/> IMPRIMIR
                              </button>
-
-                             {/* NUEVOS BOTONES DE DESCARGA */}
-                             <button onClick={makeCSV} className="bg-white border px-3 py-1 rounded font-bold text-xs flex items-center gap-1">CSV</button>
-                             <button onClick={makeExcel} className="bg-white border px-3 py-1 rounded font-bold text-xs flex items-center gap-1">Excel</button>
-                             <button onClick={downloadPDF} className="bg-white border px-3 py-1 rounded font-bold text-xs flex items-center gap-1">PDF</button>
-                             <button onClick={downloadWord} className="bg-white border px-3 py-1 rounded font-bold text-xs flex items-center gap-1">Word</button>
                         </div>
                     </div>
                     
@@ -712,20 +543,20 @@
                              </div>
                             
                              <div className="flex gap-2 flex-grow overflow-hidden">
-                                <div className="w-7/12 flex flex-col gap-2 left-column">
-                                    <div className="border-2 border-black package-desc">
+                                <div className="w-7/12 flex flex-col gap-2">
+                                    <div className="border-2 border-black">
                                         <div className="flex bg-gray-200 border-b border-black font-bold text-xs uppercase p-1">
-                                            <div className="flex-1">Programa / Descripción / Pieza</div><div className="w-20 text-center">Talla</div><div className="w-20 text-center">Total</div>
+                                            <div className="flex-1">Descripción / Pieza</div><div className="w-20 text-center">Talla</div><div className="w-20 text-center">Total</div>
                                         </div>
                                         {order.subPiecesData.map((p,i)=>(
                                             <div key={i} className="flex text-sm p-1 border-b last:border-0">
-                                                <div className="flex-1 truncate"><strong>{p.programa ? `${p.programa} — ` : ''}</strong>{p.pieza}</div>
+                                                <div className="flex-1 truncate">{p.pieza}</div>
                                                 <div className="w-20 text-center text-xs">{p.talla}</div>
                                                 <div className="w-20 text-center font-bold">{p.totalPedido}</div>
                                             </div>
                                         ))}
                                     </div>
-                                    <div className="flex-grow border-2 border-black relative threading-area">
+                                    <div className="flex-grow border-2 border-black relative">
                                         <div className="bg-black text-white text-xs font-bold text-center">ENHEBRADO</div>
                                         <div className="p-1">
                                             <table className="threading-table-print text-left">
@@ -741,7 +572,7 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div className="w-5/12 border-2 border-black flex items-center justify-center relative bg-slate-50 overflow-hidden group product-image-area">
+                                <div className="w-5/12 border-2 border-black flex items-center justify-center relative bg-slate-50 overflow-hidden group">
                                      <SmartImage repoUrls={config.repoUrls} codigo={order.codigo} className="max-h-full max-w-full object-contain"/>
                                 </div>
                             </div>
