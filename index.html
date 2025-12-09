@@ -92,7 +92,6 @@
             .package-table-print td:last-child {
                 border-right: none !important;
             }
-            /* Clave para la escritura a mano: hace el texto transparente */
             .manual-input { color: transparent; }
             .print-only { display: block !important; }
         }
@@ -480,24 +479,10 @@
             );
         };
 
-        // --- VISUALIZACIÓN E IMPRESIÓN (AÑADIDO ESPACIO PARA REGISTRO MANUAL) ---
+        // --- VISUALIZACIÓN E IMPRESIÓN ---
         const OrderView = ({ order, config, onBack, onEdit }) => { 
             const [entry, setEntry] = useState({ tejedor: '', fecha: new Date().toISOString().split('T')[0], defectos: '', agujas: '' });
             
-            // Lógica para añadir filas en blanco para registro manual en papel
-            const TOTAL_PRINT_ROWS = 25; // Cantidad total de filas deseadas en la impresión
-            const filledRows = order.progreso || [];
-            const blankRowsCount = Math.max(0, TOTAL_PRINT_ROWS - filledRows.length);
-            const blankRows = Array.from({ length: blankRowsCount }, (_, i) => ({
-                id: `blank-${i}`,
-                cantidad: '',
-                codigoUnico: '',
-                finished: false, 
-                isBlank: true // Nueva bandera para identificar filas vacías
-            }));
-            const allRowsToPrint = [...filledRows, ...blankRows];
-            // FIN: Lógica para añadir filas en blanco
-
             const markPackage = async (pkgId) => {
                 if(!entry.tejedor) return alert("Por favor selecciona un TEJEDOR");
                 const newProgreso = order.progreso.map(p => p.id === pkgId ? {...p, finished: true, tejedor: entry.tejedor, fecha: entry.fecha, defectos: entry.defectos, agujas: entry.agujas} : p);
@@ -623,29 +608,23 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {allRowsToPrint.map((p, idx) => (
+                                        {order.progreso?.map((p, idx) => (
                                             <tr key={p.id}>
                                                 <td className="text-center font-bold border-r border-black">{idx+1}</td>
-                                                <td className="pl-1 font-mono text-[8px] border-r border-black truncate" title={p.codigoUnico || p.piezaNombre}>
-                                                    {p.isBlank ? ' ' : p.codigoUnico || p.piezaNombre}
-                                                </td>
-                                                <td className="text-center font-bold border-r border-black">
-                                                    {p.isBlank ? ' ' : p.cantidad}
-                                                </td>
-                                                {/* Se usa 'manual-input' para que el texto sea transparente y se pueda escribir a mano.
-                                                    Si es fila en blanco (isBlank) se deja vacío ' ' para no imprimir el _ */}
-                                                <td className="manual-input border-r border-black">{p.finished ? p.tejedor : (p.isBlank ? ' ' : '_')}</td>
-                                                <td className="manual-input border-r border-black">{p.finished ? p.fecha : (p.isBlank ? ' ' : '_')}</td>
-                                                <td className="manual-input border-r border-black">{p.finished ? p.defectos : (p.isBlank ? ' ' : '_')}</td>
-                                                <td className="manual-input border-r border-black">{p.finished ? p.agujas : (p.isBlank ? ' ' : '_')}</td>
-                                                <td className="manual-input border-r border-black">{p.finished ? 'OK' : (p.isBlank ? ' ' : '_')}</td>
-                                                <td className="manual-input">{p.observaciones || (p.isBlank ? ' ' : '_')}</td> </tr>
+                                                <td className="pl-1 font-mono text-[8px] border-r border-black truncate" title={p.codigoUnico || p.piezaNombre}>{p.codigoUnico || p.piezaNombre}</td>
+                                                <td className="text-center font-bold border-r border-black">{p.cantidad}</td>
+                                                <td className="manual-input border-r border-black">{p.finished ? p.tejedor : '_'}</td>
+                                                <td className="manual-input border-r border-black">{p.finished ? p.fecha : '_'}</td>
+                                                <td className="manual-input border-r border-black">{p.finished ? p.defectos : '_'}</td>
+                                                <td className="manual-input border-r border-black">{p.finished ? p.agujas : '_'}</td>
+                                                <td className="manual-input border-r border-black">{p.finished ? 'OK' : '_'}</td>
+                                                <td className="manual-input">{p.observaciones || '_'}</td> </tr>
                                         ))}
                                     </tbody>
                                 </table>
                              </div>
 
-                             {/* --- PIE DE PÁGINA CON LAS FECHAS --- */}
+                             {/* --- AQUÍ ESTÁ EL PIE DE PÁGINA CON LAS FECHAS --- */}
                              <div className="mt-auto text-center border-t border-gray-300 pt-1">
                                 <div className="text-[10px] text-gray-400 font-mono">FECHA CREACIÓN: {order.createdAt || 'N/A'}</div>
                                 <div className="text-[10px] text-gray-400 font-mono">IMPRESO: {new Date().toLocaleString('es-MX')}</div>
@@ -720,7 +699,7 @@
                     <div className="bg-slate-200 p-2 text-xs font-bold flex justify-between"><span>TABLA DE ENHEBRADO</span><button onClick={addRow} className="text-indigo-600 font-bold">+ Fila</button></div>
                     <table className="w-full text-xs text-left">
                         <thead className="bg-slate-50"><tr><th className="p-2">GUÍA</th><th className="p-2">MATERIAL</th><th className="p-2 w-16 text-center">%</th><th></th></tr></thead>
-                        <tbody>{data.map((row) => (<tr key={row.id}><td className="p-1"><input className="w-full border rounded p-1" placeholder="#" value={row.guia} onChange={toUppercase(e=>updateRow(row.id,'guia',e.target.value))} /></td><td className="p-1"><input list="inv" className="w-full border rounded p-1" value={row.material} onChange={toUppercase(e=>updateRow(row.id,'material',e.target.value))} /></td><td className="p-1"><input className="w-full border rounded p-1 text-center" value={row.porcentaje} onChange={e=>updateRow(row.id,'porcentaje',e.target.value)} /></td><td className="p-1"><button onClick={()=>removeRow(row.id)} className="text-red-400"><Icon name="x" size={14}/></button></td></td></tr>))}</tbody>
+                        <tbody>{data.map((row) => (<tr key={row.id}><td className="p-1"><input className="w-full border rounded p-1" placeholder="#" value={row.guia} onChange={toUppercase(e=>updateRow(row.id,'guia',e.target.value))} /></td><td className="p-1"><input list="inv" className="w-full border rounded p-1" value={row.material} onChange={toUppercase(e=>updateRow(row.id,'material',e.target.value))} /></td><td className="p-1"><input className="w-full border rounded p-1 text-center" value={row.porcentaje} onChange={e=>updateRow(row.id,'porcentaje',e.target.value)} /></td><td className="p-1"><button onClick={()=>removeRow(row.id)} className="text-red-400"><Icon name="x" size={14}/></button></td></tr>))}</tbody>
                     </table>
                     <datalist id="inv">{inventoryKeys.map(k=><option key={k} value={k}/>)}</datalist>
                 </div>
