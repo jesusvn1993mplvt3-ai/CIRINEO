@@ -3,35 +3,117 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Producción Textil v2.1 (Multi-Repo)</title>
+    <title>Sistema Textil Cloud - Cirineo</title>
+    
+    <link id="appIcon" rel="icon" href="https://raw.githubusercontent.com/jesusvn1993mplvt3-ai/CIRINEO/refs/heads/main/maes.png">
+    <link id="appAppleIcon" rel="apple-touch-icon" href="https://raw.githubusercontent.com/jesusvn1993mplvt3-ai/CIRINEO/refs/heads/main/maes.png">
+    <meta name="theme-color" content="#1e293b">
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
-    
     <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+    <script>
+        const manifest = {
+            "name": "Sistema Textil Cloud",
+            "short_name": "Cirineo",
+            "start_url": ".",
+            "display": "standalone",
+            "background_color": "#f1f5f9",
+            "theme_color": "#1e293b",
+            "icons": [{
+                "src": "https://raw.githubusercontent.com/jesusvn1993mplvt3-ai/CIRINEO/refs/heads/main/maes.png",
+                "sizes": "192x192",
+                "type": "image/png"
+            }]
+        };
+        const stringManifest = JSON.stringify(manifest);
+        const blob = new Blob([stringManifest], {type: 'application/json'});
+        const manifestURL = URL.createObjectURL(blob);
+        const link = document.createElement('link');
+        link.rel = 'manifest';
+        link.href = manifestURL;
+        document.head.appendChild(link);
+    </script>
+
     <style>
-        /* Estilos específicos para impresión */
+        /* ESTILOS DE IMPRESIÓN */
         @media print {
-            .no-print { display: none !important; }
+            @page { margin: 0.5cm; size: letter portrait; }
+            body, html, #root { 
+                background: white;
+                -webkit-print-color-adjust: exact; 
+                width: 100%;
+                height: auto !important;
+                overflow: visible !important;
+                position: static !important;
+            }
+            .no-print, .dashboard-grid { display: none !important; }
+            .print-visible-wrapper {
+                position: static !important;
+                display: block !important;
+                width: 100% !important;
+                height: auto !important;
+                overflow: visible !important;
+                z-index: 99999 !important;
+                background: white !important;
+                inset: auto !important;
+            }
+            .print-section-top { height: 40vh; overflow: hidden; border-bottom: 2px dashed #000; margin-bottom: 1vh; display: flex; flex-direction: column; }
+            /* Ajustamos un poco la altura inferior para dar espacio al footer */
+            .print-section-bottom { height: 55vh; display: flex; flex-direction: column; justify-content: space-between; }
+            
+            table { border-collapse: collapse; width: 100%; border: 2px solid black; table-layout: fixed; }
+            th, td { border: 1px solid black; word-wrap: break-word; }
+            .threading-table-print { font-size: 9pt; }
+            .threading-table-print th { background-color: #ddd !important; }
+            .package-table-print { font-size: 9pt; width: 100%; border: 2px solid black !important; }
+            .package-table-print th { 
+                background-color: #e5e7eb !important;
+                font-weight: 800; 
+                text-transform: uppercase; 
+                font-size: 7pt;
+                padding: 1px;
+                border: 1px solid black !important;
+            }
+            .package-table-print td { 
+                padding: 1px;
+                height: 25px; 
+                vertical-align: middle; 
+                border: 1px solid black !important;
+                font-size: 8pt;
+            }
+            .package-table-print th:last-child,
+            .package-table-print td:last-child {
+                border-right: none !important;
+            }
+            .manual-input { color: transparent; }
             .print-only { display: block !important; }
-            body { background: white; -webkit-print-color-adjust: exact; }
-            .page-break { page-break-before: always; }
-            /* Asegurar que las líneas de escritura se vean en impresión */
-            .write-line { border-bottom: 1px solid #000 !important; }
         }
+
+        .print-only { display: none; }
+        .dashboard-grid { display: grid; grid-template-rows: 60vh 1fr; height: 100vh; overflow: hidden; }
+        .top-pane { overflow-y: auto; border-bottom: 4px solid #334155; }
+        .bottom-pane { overflow-x: auto; background: #1e293b; color: white; display: flex; padding: 10px; gap: 10px; }
+        .machine-card { min-width: 320px; background: #334155; border-radius: 8px; padding: 10px; display: flex; flex-direction: column; height: 100%; }
+        .pkg-list { overflow-y: auto; flex-grow: 1; margin-top: 10px; padding-right: 4px; }
+        .pkg-list::-webkit-scrollbar { width: 6px; }
+        .pkg-list::-webkit-scrollbar-thumb { background: #64748b; border-radius: 4px; }
+        .obs-input { background: transparent; border: none; color: #cbd5e1; width: 100%; font-size: 10px; border-bottom: 1px solid #475569; }
+        .obs-input:focus { outline: none; border-bottom: 1px solid #94a3b8; color: white; }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans">
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo, useCallback } = React;
+        const { useState, useEffect, useMemo } = React;
         
-        // --- 2. CONFIGURACIÓN E INICIALIZACIÓN DE FIREBASE ---
         const firebaseConfig = {
             apiKey: "AIzaSyBqHgV4vDat1-VmZfKbiPg7nuiX-ROcexw",
             authDomain: "cirineo-cec21.firebaseapp.com",
@@ -41,959 +123,774 @@
             appId: "1:620210618284:web:482bab9bf74650fff18409",
             measurementId: "G-B7YLM78RVW"
         };
+
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        const Icon = ({ name, size = 18, className }) => <i data-lucide={name} width={size} height={size} className={className}></i>;
+        const toUppercase = (handler) => (e) => { e.target.value = e.target.value.toUpperCase(); handler(e); };
         
-        // Inicializar Firebase (solo si no está ya inicializado)
-        let db;
-        try {
-            const app = firebase.initializeApp(firebaseConfig);
-            db = app.firestore();
-        } catch(e) {
-            console.error("Error al inicializar Firebase. Revise la configuración:", e);
-        }
-
-        // --- Utilidades ---
-        /**
-         * Genera un ID de orden único basado en el cliente, un contador y el nombre de la pieza.
-         * Formato: C-00000001-bl
-         */
-        const generateID = (clientName, sequence, pieceName) => {
-            const clientInitial = clientName ? clientName.charAt(0).toUpperCase() : 'X';
-            const seqString = String(sequence).padStart(8, '0');
-            // Toma las dos primeras letras de la pieza para el sufijo
-            const pieceSuffix = pieceName ? pieceName.substring(0, 2).toLowerCase() : 'xx';
-            return `${clientInitial}-${seqString}-${pieceSuffix}`;
+        const generateSmartID = (partida, pieces, maquina) => {
+            const piecePrefixes = pieces.map(p => p.pieza.substring(0, 2).toUpperCase()).join('/');
+            return `${partida}-${piecePrefixes}-M${maquina}`;
         };
 
-        /**
-         * Construye la URL de la imagen en GitHub/Web usando el repositorio de la orden.
-         */
-        const getGithubImageUrl = (repoBase, codigo) => {
-            if (!repoBase || !codigo) return null;
-            const cleanBase = repoBase.endsWith('/') ? repoBase : repoBase + '/';
-            return `${cleanBase}${codigo}.jpg`;
+        const generatePackages = (pieces, packageSize, partida) => {
+            let packages = [];
+            let pkgCounter = 1;
+            pieces.forEach(p => {
+                const total = Number(p.totalPedido) || 0;
+                const size = Number(packageSize) || total;
+                const n = Math.ceil(total / size);
+                const piecePrefix = p.pieza.substring(0, 3).toUpperCase();
+
+                for (let i = 1; i <= n; i++) {
+                    const cantidad = (i === n) ? (total % size || size) : size;
+                    const codigoUnico = `${piecePrefix}_${i}_DE_${n}`; 
+                    packages.push({ 
+                        id: Date.now() + Math.random() + pkgCounter, 
+                        piezaNombre: p.pieza, 
+                        cantidad: cantidad, 
+                        paqueteNum: i, 
+                        paquetesDePieza: n, 
+                        codigoUnico: codigoUnico,
+                        finished: false 
+                    });
+                    pkgCounter++;
+                }
+            });
+            return packages;
         };
 
-        // --- Componentes Iconos (Lucide Icons simplificados) ---
-        const Icon = ({ name, size = 20, className }) => {
-            const icons = {
-                plus: <path d="M12 5v14M5 12h14" />,
-                trash: <path d="M3 6h18M19 6v14c0 1.1-.9 2-2 2H7c-1.1 0-2-.9-2-2V6M8 6V4c0-1.1.9-2 2-2h4c1.1 0 2 .9 2 2v2M10 11v6M14 11v6" />,
-                save: <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M7 3v5h8" />,
-                printer: <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z" />,
-                search: <path d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.35-4.35" />,
-                edit: <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />,
-                arrowLeft: <path d="M19 12H5M12 19l-7-7 7-7" />,
-                archive: <path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" />,
-                folder: <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />,
-                image: <path d="M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2zM8.5 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM21 15l-5-5L5 21" />,
-                settings: <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.18-.08a2 2 0 0 0-2 2v.44a2 2 0 0 0 2 2h.18a2 2 0 0 1 1.73 1l.25.43a2 2 0 0 1 0 2l-.08.18a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.18.08a2 2 0 0 0 2-2v-.44a2 2 0 0 0-2-2h-.18a2 2 0 0 1-1.73-1l-.25-.43a2 2 0 0 1 0-2l.08-.18a2 2 0 0 0-2-2zM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z" />
+        // --- COMPONENTE BOTÓN DE INSTALACIÓN ---
+        const InstallButton = () => {
+            const [deferredPrompt, setDeferredPrompt] = useState(null);
+            useEffect(() => {
+                const handler = (e) => {
+                    e.preventDefault();
+                    setDeferredPrompt(e);
+                };
+                window.addEventListener('beforeinstallprompt', handler);
+                return () => window.removeEventListener('beforeinstallprompt', handler);
+            }, []);
+            const handleInstall = async () => {
+                if (!deferredPrompt) return;
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') setDeferredPrompt(null);
             };
+            if (!deferredPrompt) return null;
             return (
-                <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                    {icons[name] || <circle cx="12" cy="12" r="10" />}
-                </svg>
+                <button onClick={handleInstall} className="bg-yellow-500 hover:bg-yellow-600 text-black px-3 py-2 rounded font-bold shadow flex items-center gap-2 text-xs animate-pulse">
+                    <Icon name="download-cloud" size={16}/> INSTALAR APP
+                </button>
             );
         };
 
-        // --- Componente Modal de Configuración (Modificado para Multi-Repo) ---
-        const SettingsModal = ({ config, onSave, onClose }) => {
-            const [localConfig, setLocalConfig] = useState(config);
-            const [repos, setRepos] = useState(config.repositories || []);
+        // --- DASHBOARD COMPONENTS ---
+        const MachineCard = ({ maquina, orders }) => {
+            const [is24Hours, setIs24Hours] = useState(true);
+            const pendingPackages = useMemo(() => {
+                let pkgs = [];
+                orders.forEach(o => {
+                    const incomplete = o.progreso?.filter(p => !p.finished) || [];
+                    incomplete.forEach(p => {
+                        const pieceData = o.subPiecesData?.find(sp => sp.pieza === p.piezaNombre) || o;
+                        const timePerPiece = Number(pieceData.tiempo) || 0;
+                        pkgs.push({ ...p, parentOrderId: o.id, orderCode: o.codigo, partida: o.partida, timeTotal: (p.cantidad * timePerPiece) });
+                    });
+                });
+                return pkgs; 
+            }, [orders]);
 
-            const addRepo = () => {
-                setRepos([...repos, { id: Date.now(), clientName: '', repoUrl: '' }]);
+            const updateObs = async (pkgId, parentOrderId, newVal) => {
+                const order = orders.find(o => o.id === parentOrderId);
+                if(!order) return;
+                const newProgreso = order.progreso.map(p => p.id === pkgId ? {...p, observaciones: newVal} : p);
+                await db.collection('orders').doc(String(parentOrderId)).update({progreso: newProgreso});
             };
 
-            const updateRepo = (id, field, value) => {
-                setRepos(repos.map(r => r.id === id ? { ...r, [field]: value } : r));
-            };
-
-            const removeRepo = (id) => {
-                setRepos(repos.filter(r => r.id !== id));
-            };
-
-
-            const handleSave = async () => {
-                const newConfig = {
-                    ...localConfig,
-                    repositories: repos.filter(r => r.clientName && r.repoUrl) // Solo guardar repos válidos
-                };
-
-                try {
-                    const configRef = db.collection('config').doc('GLOBAL_CONFIG');
-                    await configRef.set(newConfig);
-                    onSave(newConfig);
-                } catch (error) {
-                    console.error("Error guardando configuración en Firebase:", error);
-                    alert("Error al guardar la configuración.");
-                }
-            };
+            const totalMinutesLeft = pendingPackages.reduce((sum, p) => sum + p.timeTotal, 0);
+            const hoursPerDay = is24Hours ? 24 : 12;
+            const daysLeft = totalMinutesLeft > 0 ? (totalMinutesLeft / 60 / hoursPerDay).toFixed(1) : 0;
+            const hoursLeft = (totalMinutesLeft / 60).toFixed(1);
 
             return (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-white p-6 rounded-lg w-full max-w-2xl shadow-2xl">
-                        <h2 className="text-xl font-bold mb-4">Configuración del Sistema</h2>
-
-                        {/* Contador */}
-                        <div className="mb-6 border p-4 rounded bg-slate-50">
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Contador de Órdenes Inicial</label>
-                            <input 
-                                type="number" 
-                                className="w-full border p-2 rounded text-sm" 
-                                value={localConfig.sequenceCounter}
-                                onChange={e => setLocalConfig({...localConfig, sequenceCounter: parseInt(e.target.value) || 1})}
-                            />
-                            <p className="text-xs text-slate-500 mt-1">Número que se usará para el siguiente lote (Ej: C-000000**01**)</p>
+                <div className="machine-card shadow-lg border border-slate-600">
+                    <div className="flex justify-between items-center border-b border-slate-500 pb-2 mb-2">
+                        <div>
+                            <div className="text-xs text-slate-400 font-bold uppercase">Máquina</div>
+                            <div className="text-3xl font-black text-yellow-400">#{maquina}</div>
                         </div>
-                        
-                        {/* Repositorios */}
-                        <div className="mb-6 border p-4 rounded bg-indigo-50">
-                            <h3 className="text-lg font-bold text-indigo-800 mb-3">Repositorios de Fotos por Cliente</h3>
-                            
-                            {repos.map(repo => (
-                                <div key={repo.id} className="flex gap-3 mb-2 items-center bg-white p-2 rounded border">
-                                    <input 
-                                        placeholder="Nombre Cliente (Ej: Optima)" 
-                                        className="w-1/4 p-2 text-sm border rounded font-bold" 
-                                        value={repo.clientName}
-                                        onChange={e => updateRepo(repo.id, 'clientName', e.target.value)}
-                                    />
-                                    <input 
-                                        placeholder="URL Base del Repositorio (Terminar en /)" 
-                                        className="flex-1 p-2 text-sm border rounded" 
-                                        value={repo.repoUrl}
-                                        onChange={e => updateRepo(repo.id, 'repoUrl', e.target.value)}
-                                    />
-                                    <button onClick={() => removeRepo(repo.id)} className="text-red-500 hover:text-red-700 p-1">
-                                        <Icon name="trash" size={18} />
-                                    </button>
-                                </div>
-                            ))}
-
-                            <button onClick={addRepo} className="mt-3 text-indigo-600 border border-indigo-300 border-dashed w-full p-2 rounded hover:bg-indigo-100 transition text-sm flex items-center justify-center gap-2">
-                                <Icon name="plus" size={16} /> Agregar Nuevo Repositorio
+                        <div className="text-right">
+                            <button onClick={()=>setIs24Hours(!is24Hours)} className="bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded text-[10px] font-bold mb-1 border border-slate-500 block w-full">
+                                {is24Hours ? '24 HORAS' : '12 HORAS'}
                             </button>
-                            <p className="text-xs text-slate-500 mt-2">La URL debe apuntar a la carpeta donde se encuentran las imágenes con el formato `CODIGO.jpg`.</p>
+                            <div className="text-xs font-bold text-green-400">{daysLeft} días ({hoursLeft}h)</div>
                         </div>
+                    </div>
+                    <div className="pkg-list space-y-1">
+                        {pendingPackages.length === 0 && <div className="text-center text-slate-500 text-xs py-4">Máquina Libre</div>}
+                        {pendingPackages.map((p, i) => (
+                            <div key={i} className="bg-slate-800 p-2 rounded flex gap-2 items-center text-xs border border-slate-700">
+                                <div className="font-black text-white text-lg w-10 text-right shrink-0">{p.cantidad}</div>
+                                <div className="w-24 shrink-0 overflow-hidden">
+                                    <div className="font-bold text-slate-300 truncate text-[10px]" title={p.piezaNombre}>{p.piezaNombre}</div>
+                                    <div className="text-[9px] text-yellow-500 font-black truncate">{p.partida}</div>
+                                </div>
+                                <div className="flex-grow pl-2 border-l border-slate-600">
+                                    <input className="obs-input placeholder-slate-600" placeholder="Observaciones..." defaultValue={p.observaciones || ''} onBlur={(e) => updateObs(p.id, p.parentOrderId, e.target.value)} onKeyDown={(e) => { if(e.key === 'Enter') e.target.blur(); }}/>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
 
-                        <div className="flex justify-end gap-2">
-                            <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded">Cancelar</button>
-                            <button onClick={handleSave} className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Guardar</button>
+        const DashboardBottom = ({ activeOrders }) => {
+            const machineGroups = useMemo(() => {
+                const groups = {};
+                activeOrders.forEach(o => { if(!groups[o.maquina]) groups[o.maquina] = []; groups[o.maquina].push(o); });
+                return Object.keys(groups).sort((a,b) => parseInt(a)-parseInt(b)).map(k => ({ id: k, orders: groups[k] }));
+            }, [activeOrders]);
+
+            return (
+                <div className="bottom-pane shadow-inner">
+                    {machineGroups.map(g => <MachineCard key={g.id} maquina={g.id} orders={g.orders} />)}
+                    {machineGroups.length === 0 && <div className="text-slate-500 w-full flex items-center justify-center font-bold">No hay producción activa</div>}
+                </div>
+            );
+        };
+
+        // --- COMPONENTE DE IMPORTACIÓN (CORREGIDO + FECHA CREACIÓN) ---
+        const ImportModal = ({ onClose, onImport }) => {
+            const [text, setText] = useState('');
+            const [error, setError] = useState(null);
+
+            const handleProcess = () => {
+                if (!text.trim()) return;
+                try {
+                    const delimiter = text.includes('\t') ? '\t' : ',';
+                    const rows = text.trim().split('\n').map(r => r.split(delimiter));
+                    if (rows.length < 2) throw new Error("Datos insuficientes.");
+                    const headers = rows[0].map(h => h.trim().toUpperCase().replace(/"/g, ''));
+                    const getVal = (row, colName) => { const idx = headers.indexOf(colName); return idx !== -1 && row[idx] ? row[idx].trim().replace(/"/g, '') : ''; };
+
+                    if (headers.indexOf('PARTIDA') === -1) throw new Error("Falta columna 'PARTIDA'");
+                    if (headers.indexOf('CODIGO') === -1) throw new Error("Falta columna 'CODIGO'");
+                    if (headers.indexOf('PIEZAS') === -1) throw new Error("Falta columna 'PIEZAS'");
+
+                    const predefinedPackages = [];
+                    let totalPiezas = 0;
+                    const firstRow = rows[1]; 
+                    
+                    rows.slice(1).forEach((r, i) => {
+                        const piezas = parseFloat(getVal(r, 'PIEZAS'));
+                        const codigoUnico = getVal(r, 'CODIGO'); 
+                        let pkgNum = i + 1;
+                        if (!isNaN(piezas)) {
+                            totalPiezas += piezas;
+                            predefinedPackages.push({ 
+                                id: Date.now() + i, 
+                                piezaNombre: getVal(r, 'DESCRIPCION') || 'ESTANDAR', 
+                                cantidad: piezas, 
+                                paqueteNum: pkgNum, 
+                                paquetesDePieza: rows.length - 1, 
+                                codigoUnico: codigoUnico, 
+                                finished: false 
+                            });
+                        }
+                    });
+
+                    const threading = [];
+                    const nylon = getVal(firstRow, 'NYLON');
+                    const lycra = getVal(firstRow, 'LYCRA');
+                    if (nylon) threading.push({ id: 1, guia: '1', material: `NYLON ${nylon}`, sis: '', porcentaje: '' });
+                    if (lycra) threading.push({ id: 2, guia: '2', material: `LYCRA ${lycra}`, sis: '', porcentaje: '' });
+                    
+                    // IMPORTANTE: Ahora incluimos createdAt
+                    onImport({ 
+                        codigo: getVal(firstRow, 'MODELO'), 
+                        cliente: getVal(firstRow, 'CLIENTE'), 
+                        maquina: getVal(firstRow, 'MAQUINA'), 
+                        partida: getVal(firstRow, 'PARTIDA'), 
+                        subPiecesData: [{ 
+                            id: Date.now(), 
+                            pieza: getVal(firstRow, 'DESCRIPCION') || 'ESTANDAR', 
+                            programa: '', 
+                            talla: getVal(firstRow, 'TALLA') || 'UNITALLA', 
+                            totalPedido: totalPiezas, 
+                            peso: '', 
+                            tiempo: '' 
+                        }], 
+                        threading: threading, 
+                        predefinedPackages: predefinedPackages,
+                        createdAt: new Date().toLocaleString('es-MX') // FECHA DE CREACIÓN AL IMPORTAR
+                    });
+                } catch (e) { setError(e.message); }
+            };
+            return (
+                <div className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4">
+                    <div className="bg-white p-6 rounded-lg shadow-2xl w-full max-w-2xl relative">
+                        <div className="flex justify-between items-center mb-4 border-b pb-2">
+                            <h3 className="font-bold text-xl text-green-700 flex items-center gap-2"><Icon name="file-spreadsheet"/> Importar Excel</h3>
+                            <button onClick={onClose} className="bg-red-500 hover:bg-red-600 text-white rounded-md p-2 shadow-lg flex items-center gap-1 font-bold text-xs transition-transform hover:scale-105">
+                                <Icon name="x" size={18}/> CERRAR
+                            </button>
+                        </div>
+                        <p className="text-xs text-slate-500 mb-2">Copia y pega las celdas desde Excel.</p>
+                        <textarea value={text} onChange={(e) => { setText(e.target.value); setError(null); }} className="w-full h-64 p-3 border-2 border-slate-300 rounded font-mono text-xs focus:border-green-500 focus:outline-none" placeholder="Pegar datos..."></textarea>
+                        {error && <div className="mt-2 text-red-600 text-xs font-bold bg-red-50 p-2 rounded border border-red-200">Error: {error}</div>}
+                        <div className="flex justify-end gap-2 mt-4">
+                            <button onClick={handleProcess} className="px-6 py-2 bg-green-600 text-white font-bold rounded shadow hover:bg-green-700 flex items-center gap-2"><Icon name="check-circle" size={18}/> Procesar</button>
                         </div>
                     </div>
                 </div>
             );
         };
 
+        // --- COMPONENTE IMAGEN ---
+        const SmartImage = ({ repoUrls, codigo, className }) => {
+            const [imgSrc, setImgSrc] = useState(null);
+            const [attempt, setAttempt] = useState({ urlIndex: 0, extension: 'jpg' });
+            useEffect(() => {
+                if (!repoUrls || !repoUrls.length || !codigo) { setImgSrc(null); return; }
+                setAttempt({ urlIndex: 0, extension: 'jpg' });
+                const base = repoUrls[0].endsWith('/') ? repoUrls[0] : repoUrls[0] + '/';
+                setImgSrc(`${base}${codigo}.jpg`);
+            }, [repoUrls, codigo]);
 
-        // --- Componente Formulario de Lote/Multi-Orden (Modificado para Repositorio) ---
-        const MultiOrderForm = ({ config, onSave, onCancel }) => {
-            // Datos Cabecera (Compartidos)
-            const [header, setHeader] = useState({
-                cliente: '',
-                maquina: '',
-                fechaInicio: new Date().toISOString().split('T')[0],
-                fechaEntrega: '',
-                // Nuevo campo para el repositorio seleccionado
-                repoId: config.repositories && config.repositories.length > 0 ? config.repositories[0].id : null, 
-            });
+            const handleError = () => {
+                const { urlIndex, extension } = attempt;
+                if (extension === 'jpg') {
+                    const base = repoUrls[urlIndex].endsWith('/') ? repoUrls[urlIndex] : repoUrls[urlIndex] + '/';
+                    setImgSrc(`${base}${codigo}.png`);
+                    setAttempt({ ...attempt, extension: 'png' });
+                } else if (urlIndex < repoUrls.length - 1) {
+                    const nextIdx = urlIndex + 1;
+                    const base = repoUrls[nextIdx].endsWith('/') ? repoUrls[nextIdx] : repoUrls[nextIdx] + '/';
+                    setImgSrc(`${base}${codigo}.jpg`);
+                    setAttempt({ urlIndex: nextIdx, extension: 'jpg' });
+                } else {
+                    setAttempt({ ...attempt, extension: 'fail' });
+                }
+            };
+            if (attempt.extension === 'fail' || !imgSrc) return <div className={`bg-slate-100 flex flex-col items-center justify-center text-slate-300 ${className}`}><Icon name="image-off" size={48} className="mb-2"/><span className="text-[10px] text-center px-2">No imagen</span></div>;
+            return <img src={imgSrc} onError={handleError} className={className} />;
+        };
 
-            // Lista de Piezas (Sub-ordenes)
-            const [pieces, setPieces] = useState([
-                { id: 1, codigo: '', pieza: 'Blusa', talla: 'Unitalla', peso: '', tiempo: '', totalPedido: '', materiales: [{material: '', consumo: ''}] }
-            ]);
-            
-            // ... (Lógica de añadir/quitar piezas y materiales es la misma, omitida por brevedad) ...
-            
-            const addPiece = () => {
-                setPieces([...pieces, { 
-                    id: Date.now(), 
-                    codigo: header.cliente ? header.cliente.substring(0,3).toUpperCase() + '-' : '', // Sugerencia de código
-                    pieza: '', talla: 'Unitalla', peso: '', tiempo: '', totalPedido: '', 
-                    materiales: [{material: '', consumo: ''}] 
-                }]);
-            };
-
-            const updatePiece = (id, field, value) => {
-                setPieces(pieces.map(p => p.id === id ? { ...p, [field]: value } : p));
-            };
-            
-            const updateMaterial = (pieceId, matIdx, field, value) => {
-                setPieces(pieces.map(p => {
-                    if (p.id !== pieceId) return p;
-                    const newMats = [...p.materiales];
-                    newMats[matIdx][field] = value;
-                    return { ...p, materiales: newMats };
-                }));
-            };
-
-            const addMaterial = (pieceId) => {
-                setPieces(pieces.map(p => p.id === pieceId ? { ...p, materiales: [...p.materiales, {material:'', consumo:''}] } : p));
-            };
-
-            const removeMaterial = (pieceId, matIdx) => {
-                setPieces(pieces.map(p => {
-                    if (p.id !== pieceId) return p;
-                    return { ...p, materiales: p.materiales.filter((_, i) => i !== matIdx) };
-                }));
-            };
-
-            const removePiece = (id) => {
-                if(pieces.length > 1) setPieces(pieces.filter(p => p.id !== id));
-            };
-            
-            const [isSaving, setIsSaving] = useState(false);
+        // --- FORMULARIO DE ORDEN (CREAR Y EDITAR - CON FECHA CREACIÓN) ---
+        const MultiOrderForm = ({ config, onCancel, initialOrder, clientHistory, inventory, isEditing }) => {
+            const [header, setHeader] = useState(initialOrder ? { codigo: initialOrder.codigo, cliente: initialOrder.cliente, maquina: initialOrder.maquina, partida: initialOrder.partida || '', fechaInicio: initialOrder.fechaInicio || new Date().toISOString().split('T')[0] } : { codigo: '', cliente: '', maquina: '', partida: '', fechaInicio: new Date().toISOString().split('T')[0] });
+            const [pieces, setPieces] = useState(initialOrder?.subPiecesData || [{ id: 1, pieza: 'BLUSA', programa: '', talla: 'UNITALLA', totalPedido: 100, peso: '', tiempo: '' }]);
+            const [threadingData, setThreadingData] = useState(initialOrder?.threading || []);
+            const predefinedPackages = initialOrder?.predefinedPackages || (initialOrder && initialOrder.packageSize === 'VARIO' ? initialOrder.progreso : null);
+            const [packageSize, setPackageSize] = useState(initialOrder?.packageSize && initialOrder.packageSize !== 'VARIO' ? initialOrder.packageSize : 50);
+            const addPiece = () => setPieces([...pieces, { id: Date.now(), pieza: '', talla: 'UNITALLA', totalPedido: '', peso: '', tiempo: '' }]);
+            const updatePiece = (id, f, v) => setPieces(pieces.map(p => p.id === id ? { ...p, [f]: v } : p));
+            const removePiece = (id) => pieces.length > 1 && setPieces(pieces.filter(p => p.id !== id));
+            const inventoryKeys = inventory ? Object.keys(inventory) : [];
 
             const handleSubmit = async () => {
-                if(!header.cliente || !header.maquina || !header.repoId) return alert("Falta Cliente, Máquina o Repositorio de Fotos.");
-                
-                setIsSaving(true);
-                const ordersCollection = db.collection('orders');
-                const batch = db.batch();
-                let currentSequence = config.sequenceCounter;
+                if(!header.codigo || !header.cliente || !header.maquina || !header.partida) return alert("Faltan datos.");
+                let finalPackages = initialOrder?.progreso?.filter(p => p.finished) || []; 
+                if (predefinedPackages) {
+                    if (isEditing) {
+                        const newPredefined = initialOrder.progreso.map(p => {
+                            const original = initialOrder.progreso.find(op => op.id === p.id);
+                            return {...p, finished: original?.finished || false, tejedor: original?.tejedor || '', fecha: original?.fecha || '', defectos: original?.defectos || '', agujas: original?.agujas || ''};
+                        });
+                        finalPackages = newPredefined;
+                    } else {
+                        finalPackages = predefinedPackages;
+                    }
+                } else {
+                    const newPackages = generatePackages(pieces, packageSize, header.partida);
+                    if(isEditing) {
+                         const finishedIds = new Set(finalPackages.map(p=>p.id));
+                         finalPackages = [...finalPackages, ...newPackages.filter(p=>!finishedIds.has(p.id))];
+                    } else {
+                         finalPackages = newPackages;
+                    }
+                }
 
-                try {
-                    // Generar y agregar órdenes al batch
-                    const newOrdersList = [];
-                    pieces.forEach((p) => {
-                        const uniqueID = generateID(header.cliente, currentSequence, p.pieza);
-                        
-                        const newOrder = {
-                            displayId: uniqueID, 
-                            baseSequence: currentSequence, 
-                            cliente: header.cliente,
-                            maquina: header.maquina,
-                            fechaInicio: header.fechaInicio,
-                            fechaFin: header.fechaEntrega,
-                            codigo: p.codigo,
-                            pieza: p.pieza,
-                            talla: p.talla,
-                            peso: p.peso,
-                            tiempo: p.tiempo,
-                            totalPedido: p.totalPedido,
-                            materiales: p.materiales.filter(m => m.material), 
-                            enhebrado: '',
-                            progreso: [],
-                            status: 'En Proceso',
-                            imageManual: null,
-                            // NUEVO: Guardar el ID del repositorio para buscar la foto
-                            repoId: header.repoId, 
-                            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                        };
-                        
-                        const docRef = ordersCollection.doc();
-                        batch.set(docRef, newOrder);
-                        
-                        newOrdersList.push({ ...newOrder, id: docRef.id }); 
+                const displayId = generateSmartID(header.partida, pieces, header.maquina);
+                // LOGICA DE FECHA DE CREACIÓN
+                const creationDate = isEditing 
+                    ? (initialOrder.createdAt || new Date().toLocaleString('es-MX')) 
+                    : (initialOrder?.createdAt || new Date().toLocaleString('es-MX'));
 
-                        currentSequence++; 
+                const orderPayload = { 
+                    ...header, 
+                    id: isEditing ? initialOrder.id : Date.now(), 
+                    displayId, 
+                    subPiecesData: pieces.map(p => ({...p, totalPedido: Number(p.totalPedido)})), 
+                    progreso: finalPackages, 
+                    threading: threadingData, 
+                    packageSize: predefinedPackages ? 'VARIO' : Number(packageSize), 
+                    status: initialOrder?.status || 'EN PROCESO', 
+                    totalPedido: pieces.reduce((a,b)=>a+Number(b.totalPedido),0),
+                    createdAt: creationDate // GUARDAMOS LA FECHA
+                };
+                try { 
+                    await db.collection('orders').doc(String(orderPayload.id)).set(orderPayload);
+                    alert(`Orden ${isEditing ? 'Actualizada' : 'Guardada'}`);
+                    onCancel(); 
+                } catch(e) { 
+                    console.error(e);
+                    alert("Error al guardar"); 
+                }
+            };
+            return (
+                <div className="bg-white p-6 rounded shadow-xl max-w-4xl mx-auto my-4 overflow-y-auto h-[90vh]">
+                    <div className="flex justify-between items-center mb-4 border-b pb-2">
+                        <h2 className="font-bold text-xl flex items-center gap-2">
+                             <Icon name={isEditing ? "file-edit" : "file-plus"}/> {isEditing ? 'Editar Orden' : 'Nueva Orden'}
+                        </h2>
+                        <button onClick={onCancel} className="text-red-500 font-bold">Cancelar</button>
+                    </div>
+                    <div className="grid grid-cols-12 gap-4 mb-4">
+                        <div className="col-span-3 bg-yellow-50 p-2 rounded border border-yellow-200"><label className="text-xs font-bold text-yellow-900">PARTIDA</label><input value={header.partida} onChange={toUppercase(e=>setHeader({...header, partida:e.target.value}))} className="w-full text-lg font-black p-1 bg-white border rounded uppercase" placeholder="Ej: 24NOV451" disabled={isEditing}/></div>
+                        <div className="col-span-3"><label className="text-xs font-bold">MODELO (FOTO)</label><input value={header.codigo} onChange={toUppercase(e=>setHeader({...header, codigo:e.target.value}))} className="w-full border p-2 rounded font-bold uppercase"/></div>
+                        <div className="col-span-4"><label className="text-xs font-bold">CLIENTE</label><input list="clients" value={header.cliente} onChange={toUppercase(e=>setHeader({...header, cliente:e.target.value}))} className="w-full border p-2 rounded font-bold"/><datalist id="clients">{clientHistory.map(c=><option key={c} value={c}/>)}</datalist></div>
+                        <div className="col-span-2"><label className="text-xs font-bold bg-slate-200 px-1">MÁQUINA</label><input value={header.maquina} onChange={toUppercase(e=>setHeader({...header, maquina:e.target.value}))} className="w-full border-2 border-slate-400 p-2 rounded font-black text-center"/></div>
+                    </div>
+                    <div className="mb-4 bg-slate-50 p-3 rounded">
+                        <h3 className="font-bold text-sm mb-2 flex items-center gap-2"><Icon name="layers"/> Piezas / Detalles</h3>
+                        {pieces.map((p, i) => (
+                            <div key={p.id} className="grid grid-cols-12 gap-2 mb-2 items-end border-b pb-2">
+                                <div className="col-span-4"><label className="text-[10px] font-bold">Nombre/Desc</label><input value={p.pieza} onChange={toUppercase(e=>updatePiece(p.id,'pieza',e.target.value))} className="w-full border p-1 rounded font-bold text-sm"/></div>
+                                <div className="col-span-2"><label className="text-[10px] font-bold">Talla</label><input value={p.talla} onChange={toUppercase(e=>updatePiece(p.id,'talla',e.target.value))} className="w-full border p-1 rounded text-xs"/></div>
+                                <div className="col-span-2"><label className="text-[10px] font-bold">Cant. Total</label><input type="number" value={p.totalPedido} onChange={e=>updatePiece(p.id,'totalPedido',e.target.value)} className="w-full border p-1 font-bold text-indigo-700" disabled={!!predefinedPackages}/></div>
+                                <div className="col-span-2"><label className="text-[10px] font-bold">Minutos/Pza</label><input type="number" value={p.tiempo} onChange={e=>updatePiece(p.id,'tiempo',e.target.value)} className="w-full border p-1 bg-yellow-50" placeholder="Calc. Tiempo"/></div>
+                                <div className="col-span-1 text-center"><button onClick={()=>removePiece(p.id)} className="text-red-500" disabled={!!predefinedPackages}><Icon name="x"/></button></div>
+                            </div>
+                        ))}
+                        {!predefinedPackages && <button onClick={addPiece} className="text-xs font-bold text-indigo-600">+ Agregar Pieza</button>}
+                        {predefinedPackages && <div className="text-xs text-green-600 font-bold mt-2"><Icon name="check"/> Paquetes cargados desde Excel ({predefinedPackages.length} filas)</div>}
+                    </div>
+                    <ThreadingEditor data={threadingData} onChange={setThreadingData} inventoryKeys={inventoryKeys} />
+                    <div className="flex gap-4 mt-4">
+                        {!predefinedPackages && <div className="w-32"><label className="text-xs font-bold">Pzs/Paquete</label><input type="number" value={packageSize} onChange={e=>setPackageSize(e.target.value)} className="border p-2 rounded w-full"/></div>}
+                        <button onClick={handleSubmit} className="flex-1 bg-slate-900 text-white font-bold rounded shadow hover:bg-slate-800 py-3">{isEditing ? 'GUARDAR CAMBIOS' : 'CREAR ORDEN'}</button>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- VISUALIZACIÓN E IMPRESIÓN ---
+        const OrderView = ({ order, config, onBack, onEdit }) => { 
+            const [entry, setEntry] = useState({ tejedor: '', fecha: new Date().toISOString().split('T')[0], defectos: '', agujas: '' });
+            
+            const markPackage = async (pkgId) => {
+                if(!entry.tejedor) return alert("Por favor selecciona un TEJEDOR");
+                const newProgreso = order.progreso.map(p => p.id === pkgId ? {...p, finished: true, tejedor: entry.tejedor, fecha: entry.fecha, defectos: entry.defectos, agujas: entry.agujas} : p);
+                await db.collection('orders').doc(String(order.id)).update({progreso: newProgreso});
+            };
+
+            const unmarkPackage = async (pkgId) => {
+                const newProgreso = order.progreso.map(p => p.id === pkgId ? {...p, finished: false, tejedor: '', fecha: '', defectos: '', agujas: ''} : p);
+                await db.collection('orders').doc(String(order.id)).update({progreso: newProgreso});
+            };
+
+            const toggleArchive = async () => {
+                const isArchived = order.status === 'ARCHIVADO';
+                const msg = isArchived ? "¿Desarchivar esta orden?" : "¿Marcar orden como TERMINADA y archivarla?";
+                if(window.confirm(msg)){
+                    await db.collection('orders').doc(String(order.id)).update({
+                        status: isArchived ? 'EN PROCESO' : 'ARCHIVADO'
                     });
-
-                    // 3. Actualizar el contador global en la configuración
-                    const newSequenceCounter = currentSequence;
-                    const configRef = db.collection('config').doc('GLOBAL_CONFIG');
-                    batch.update(configRef, { sequenceCounter: newSequenceCounter });
-
-                    await batch.commit();
-
-                    onSave(newOrdersList, newSequenceCounter); 
-                    
-                } catch (error) {
-                    console.error("Error al guardar el lote en Firebase:", error);
-                    alert("Hubo un error al generar y guardar las órdenes.");
-                } finally {
-                    setIsSaving(false);
+                    onBack();
                 }
             };
             
-            const availableRepos = config.repositories || [];
+            // --- CÁLCULOS DE PRODUCCIÓN ---
+            // Sumamos el tiempo de todas las piezas (si es un conjunto) o tomamos el de la pieza individual
+            const minutosPorPrenda = order.subPiecesData.reduce((acc, curr) => acc + (Number(curr.tiempo) || 0), 0);
+            
+            // Si minutos es 0, evitamos división por cero
+            const piezasPorHora = minutosPorPrenda > 0 ? (60 / minutosPorPrenda).toFixed(0) : 0;
+            const piezasPorTurno = minutosPorPrenda > 0 ? ((60 / minutosPorPrenda) * 12).toFixed(0) : 0;
+
 
             return (
-                <div className="max-w-6xl mx-auto bg-white rounded-xl shadow-lg my-6 overflow-hidden">
-                    <div className="bg-indigo-600 p-4 flex justify-between items-center text-white">
-                        <h2 className="text-xl font-bold">Crear Nuevo Lote de Producción</h2>
-                        <button onClick={onCancel} disabled={isSaving} className="text-indigo-200 hover:text-white">Cancelar</button>
+                <div className="bg-white min-h-screen relative">
+                    <div className="no-print p-4 border-b flex justify-between bg-slate-50 sticky top-0 z-10 shadow-sm">
+                        <button onClick={onBack} className="flex items-center gap-2 text-slate-600 font-bold"><Icon name="arrow-left"/> Volver</button>
+                        <div className="flex gap-2">
+                             <button onClick={toggleArchive} className={`px-3 py-1 rounded font-bold text-xs flex items-center gap-1 text-white ${order.status === 'ARCHIVADO' ? 'bg-orange-500 hover:bg-orange-600' : 'bg-green-600 hover:bg-green-700'}`}>
+                                 <Icon name={order.status === 'ARCHIVADO' ? "refresh-ccw" : "archive"}/> 
+                                 {order.status === 'ARCHIVADO' ? 'DESARCHIVAR' : 'ARCHIVAR ORDEN'}
+                             </button>
+
+                             <button onClick={() => onEdit(order)} className="bg-indigo-600 text-white px-3 py-1 rounded font-bold text-xs flex items-center gap-1 hover:bg-indigo-700">
+                                 <Icon name="file-edit"/> EDITAR
+                             </button>
+                             <button onClick={() => window.print()} className="bg-slate-900 text-white px-3 py-1 rounded font-bold text-xs flex items-center gap-1 hover:bg-slate-700">
+                                 <Icon name="printer"/> IMPRIMIR
+                             </button>
+                        </div>
                     </div>
                     
-                    <div className="p-6">
-                        {/* Cabecera */}
-                        <div className="bg-indigo-50 p-4 rounded-lg mb-6 border border-indigo-100">
-                            <h3 className="text-sm font-bold text-indigo-800 uppercase mb-3">Datos Generales (Aplica a todas las piezas) - ID Lote: {generateID(header.cliente, config.sequenceCounter, "")}</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                                <div className="col-span-2">
-                                    <label className="block text-xs font-bold text-indigo-600 mb-1">Cliente</label>
-                                    <input value={header.cliente} onChange={e => setHeader({...header, cliente: e.target.value})} className="w-full p-2 border rounded" placeholder="Ej: Optima" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-indigo-600 mb-1">Máquina</label>
-                                    <input value={header.maquina} onChange={e => setHeader({...header, maquina: e.target.value})} className="w-full p-2 border rounded" placeholder="#5" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-indigo-600 mb-1">Fecha Inicio</label>
-                                    <input type="date" value={header.fechaInicio} onChange={e => setHeader({...header, fechaInicio: e.target.value})} className="w-full p-2 border rounded" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-indigo-600 mb-1">Entrega Estimada</label>
-                                    <input type="date" value={header.fechaEntrega} onChange={e => setHeader({...header, fechaEntrega: e.target.value})} className="w-full p-2 border rounded" />
-                                </div>
-                                {/* NUEVO: Selector de Repositorio */}
-                                <div className="col-span-full">
-                                    <label className="block text-xs font-bold text-indigo-600 mb-1">Repositorio de Fotos (URL Base)</label>
-                                    {availableRepos.length > 0 ? (
-                                        <select 
-                                            value={header.repoId || ''} 
-                                            onChange={e => setHeader({...header, repoId: e.target.value})}
-                                            className="w-full p-2 border rounded bg-white"
-                                        >
-                                            <option value="" disabled>Seleccione un repositorio</option>
-                                            {availableRepos.map(repo => (
-                                                <option key={repo.id} value={repo.id}>{repo.clientName} ({repo.repoUrl.substring(0, 30)}...)</option>
-                                            ))}
-                                        </select>
-                                    ) : (
-                                        <div className="p-2 bg-red-100 text-red-700 rounded text-sm">
-                                            <Icon name="settings" size={16} className="inline mr-1" />
-                                            No hay repositorios configurados. Vaya a Configuración.
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
+                    <div className="p-8 print:p-0">
+                        {order.status === 'ARCHIVADO' && <div className="bg-orange-100 border-l-4 border-orange-500 text-orange-700 p-4 mb-4 font-bold text-center no-print">ESTA ORDEN ESTÁ ARCHIVADA / TERMINADA</div>}
 
-                        {/* Lista de Piezas */}
-                        <div className="space-y-6">
-                            {pieces.map((piece, idx) => (
-                                <div key={piece.id} className="border border-slate-300 rounded-lg p-4 relative hover:shadow-md transition bg-white">
-                                    <div className="absolute top-0 left-0 bg-slate-200 text-slate-600 px-2 py-1 text-xs font-bold rounded-br">
-                                        Pieza #{idx + 1}
-                                    </div>
-                                    <button onClick={() => removePiece(piece.id)} className="absolute top-2 right-2 text-red-400 hover:text-red-600 p-1 rounded-full bg-white/50 hover:bg-white transition">
-                                        <Icon name="trash" size={18} />
-                                    </button>
-
-                                    <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mt-4">
-                                        <div className="col-span-1 md:col-span-2">
-                                            <label className="text-xs text-slate-500 block">Nombre Pieza (Sufijo ID)</label>
-                                            <input list="piezasList" value={piece.pieza} onChange={e => updatePiece(piece.id, 'pieza', e.target.value)} className="w-full p-2 border rounded font-bold" placeholder="Ej: Blusa" />
-                                            <datalist id="piezasList">
-                                                <option value="Blusa" />
-                                                <option value="Manga" />
-                                                <option value="Cuello" />
-                                                <option value="Tirante" />
-                                                <option value="Espalda" />
-                                            </datalist>
+                        <div className="print-section-top">
+                             <div className="flex justify-between items-start border-b-4 border-black pb-2 mb-2">
+                                <div>
+                                    <h1 className="text-4xl font-black uppercase tracking-tighter">{order.cliente}</h1>
+                                    <div className="text-xl font-bold font-mono">PARTIDA: {order.partida}</div>
+                                    <div className="text-sm font-bold text-slate-600 mt-1">MODELO: {order.codigo}</div>
+                                </div>
+                                <div className="text-right">
+                                    <span className="bg-black text-white px-2 py-1 text-sm font-bold uppercase">MÁQUINA</span>
+                                    <div className="text-6xl font-black leading-none">{order.maquina}</div>
+                                </div>
+                             </div>
+                            
+                             <div className="flex gap-2 flex-grow overflow-hidden">
+                                <div className="w-7/12 flex flex-col gap-2">
+                                    <div className="border-2 border-black">
+                                        <div className="flex bg-gray-200 border-b border-black font-bold text-xs uppercase p-1">
+                                            <div className="flex-1">Descripción / Pieza</div><div className="w-20 text-center">Talla</div><div className="w-20 text-center">Total</div>
                                         </div>
-                                        <div className="col-span-1 md:col-span-2">
-                                            <label className="text-xs text-slate-500 block">Código Diseño</label>
-                                            <input value={piece.codigo} onChange={e => updatePiece(piece.id, 'codigo', e.target.value)} className="w-full p-2 border rounded" placeholder="Ej: M026BL01" />
-                                        </div>
-                                        <div className="col-span-1">
-                                            <label className="text-xs text-slate-500 block">Talla</label>
-                                            <input value={piece.talla} onChange={e => updatePiece(piece.id, 'talla', e.target.value)} className="w-full p-2 border rounded" />
-                                        </div>
-                                        <div className="col-span-1">
-                                            <label className="text-xs text-slate-500 block">Pedido Total</label>
-                                            <input type="number" value={piece.totalPedido} onChange={e => updatePiece(piece.id, 'totalPedido', e.target.value)} className="w-full p-2 border rounded" />
-                                        </div>
-                                        <div className="col-span-1">
-                                            <label className="text-xs text-slate-500 block">Peso (kg)</label>
-                                            <input type="number" step="0.001" value={piece.peso} onChange={e => updatePiece(piece.id, 'peso', e.target.value)} className="w-full p-2 border rounded" />
-                                        </div>
-                                        <div className="col-span-1">
-                                            <label className="text-xs text-slate-500 block">Tiempo (min)</label>
-                                            <input type="number" step="0.1" value={piece.tiempo} onChange={e => updatePiece(piece.id, 'tiempo', e.target.value)} className="w-full p-2 border rounded" />
-                                        </div>
-                                    </div>
-
-                                    {/* Materiales Mini Inline */}
-                                    <div className="mt-3 bg-slate-50 p-2 rounded">
-                                        <div className="flex items-center justify-between gap-2 mb-2 border-b pb-1">
-                                            <span className="text-xs font-bold text-slate-500">MATERIALES REQUERIDOS:</span>
-                                            <button onClick={() => addMaterial(piece.id)} className="text-xs text-indigo-600 underline hover:no-underline font-medium flex items-center gap-1">
-                                                <Icon name="plus" size={12} /> Agregar Hilo
-                                            </button>
-                                        </div>
-                                        {piece.materiales.map((m, mIdx) => (
-                                            <div key={mIdx} className="flex gap-2 mb-1 items-center">
-                                                <input placeholder="Nombre Material (Ej: Likra Yuki)" className="flex-1 p-1 text-xs border rounded" value={m.material} onChange={e => updateMaterial(piece.id, mIdx, 'material', e.target.value)} />
-                                                <input placeholder="Consumo (kg)" className="w-24 p-1 text-xs border rounded text-right" value={m.consumo} onChange={e => updateMaterial(piece.id, mIdx, 'consumo', e.target.value)} />
-                                                <button onClick={() => removeMaterial(piece.id, mIdx)} className="text-red-400 hover:text-red-600 p-1">
-                                                    <Icon name="trash" size={14} />
-                                                </button>
+                                        {order.subPiecesData.map((p,i)=>(
+                                            <div key={i} className="flex text-sm p-1 border-b last:border-0">
+                                                <div className="flex-1 truncate">{p.pieza}</div>
+                                                <div className="w-20 text-center text-xs">{p.talla}</div>
+                                                <div className="w-20 text-center font-bold">{p.totalPedido}</div>
                                             </div>
                                         ))}
                                     </div>
+                                    
+                                    {/* TABLA DE ENHEBRADO CON ALTURA FIJA (MITAD) */}
+                                    <div className="border-2 border-black relative h-32 overflow-hidden">
+                                        <div className="bg-black text-white text-xs font-bold text-center">ENHEBRADO</div>
+                                        <div className="p-1 h-full">
+                                            <table className="threading-table-print text-left">
+                                                <thead><tr className="bg-gray-200 border-b border-black"><th className="p-1 w-10">Pos</th><th className="p-1">Material</th><th className="p-1 w-10 text-center">%</th></tr></thead>
+                                                <tbody>{order.threading && order.threading.map((row, i) => (
+                                                    <tr key={i} className="border-b border-gray-300">
+                                                        <td className="pl-1 border-r border-gray-300 font-bold">{row.guia}</td>
+                                                        <td className="pl-1 border-r border-gray-300 truncate">{row.material}</td>
+                                                        <td className="text-center font-bold">{row.porcentaje}</td>
+                                                    </tr>
+                                                ))}</tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    {/* NUEVOS RECUADROS DE PRODUCCIÓN */}
+                                    <div className="flex gap-2 h-16">
+                                        <div className="w-1/2 border-2 border-black flex flex-col justify-center items-center bg-white">
+                                            <span className="text-[10px] font-bold uppercase bg-slate-100 w-full text-center border-b border-black">PZS / HORA</span>
+                                            <span className="text-2xl font-black">{piezasPorHora}</span>
+                                        </div>
+                                        <div className="w-1/2 border-2 border-black flex flex-col justify-center items-center bg-white">
+                                            <span className="text-[10px] font-bold uppercase bg-slate-100 w-full text-center border-b border-black">PZS / TURNO (12h)</span>
+                                            <span className="text-2xl font-black">{piezasPorTurno}</span>
+                                        </div>
+                                    </div>
+
                                 </div>
-                            ))}
-                        </div>
-
-                        <div className="mt-6 flex flex-col md:flex-row justify-between gap-4">
-                            <button onClick={addPiece} className="border-2 border-dashed border-indigo-300 text-indigo-600 px-4 py-3 rounded-lg w-full md:w-auto hover:bg-indigo-50 font-bold transition" disabled={isSaving}>
-                                <Icon name="plus" size={16} className="inline mr-1" /> Agregar Otra Pieza (Mismo Lote)
-                            </button>
-                            <button onClick={handleSubmit} className="bg-indigo-600 text-white px-8 py-3 rounded-lg shadow-lg hover:bg-indigo-700 font-bold flex items-center justify-center gap-2 transition" disabled={isSaving}>
-                                <Icon name="save" /> {isSaving ? 'Guardando...' : 'Generar Órdenes'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
-        // --- Componente Vista de Detalle de Orden (Modificado para usar el Repositorio de la Orden) ---
-        const OrderView = ({ order, config, onBack, onUpdateStatus, onUpdateProgress, onUpdateNotes }) => {
-            const [entry, setEntry] = useState({ fecha: new Date().toISOString().split('T')[0], tejedor: '', produccion: '', defectos: '' });
-            const [notes, setNotes] = useState(order.enhebrado || '');
-            const [isUpdating, setIsUpdating] = useState(false);
-            
-            // Buscar la URL del repositorio basada en el repoId de la orden
-            const currentRepo = (config.repositories || []).find(r => r.id === order.repoId);
-            const repoUrl = currentRepo ? currentRepo.repoUrl : null;
-            
-            // Determinar imagen (Manual > Repositorio de la Orden > Placeholder)
-            const imageUrl = order.imageManual || getGithubImageUrl(repoUrl, order.codigo);
-
-            const addProgress = async () => {
-                if(!entry.produccion || !entry.tejedor) return alert("Por favor, ingrese Producción y Tejedor.");
-                
-                setIsUpdating(true);
-                const newProgressEntry = { 
-                    ...entry, 
-                    produccion: Number(entry.produccion),
-                    id: Date.now(),
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                };
-                
-                const newProgress = [...(order.progreso || []), newProgressEntry];
-                
-                try {
-                    const orderRef = db.collection('orders').doc(order.id);
-                    await orderRef.update({ progreso: newProgress });
-
-                    onUpdateProgress(order.id, newProgress);
-                    setEntry({ ...entry, produccion: '', defectos: '' });
-                } catch (error) {
-                    console.error("Error al añadir progreso en Firebase:", error);
-                    alert("Error al guardar el progreso.");
-                } finally {
-                    setIsUpdating(false);
-                }
-            };
-
-            const handleNotesChange = async () => {
-                setIsUpdating(true);
-                try {
-                    const orderRef = db.collection('orders').doc(order.id);
-                    await orderRef.update({ enhebrado: notes });
-                    
-                    onUpdateNotes(order.id, notes);
-                } catch (error) {
-                    console.error("Error al guardar notas en Firebase:", error);
-                    alert("Error al guardar las notas.");
-                } finally {
-                    setIsUpdating(false);
-                }
-            };
-            
-            const totalProd = order.progreso?.reduce((acc, curr) => acc + Number(curr.produccion), 0) || 0;
-            const porcentaje = order.totalPedido ? Math.min(100, ((totalProd / Number(order.totalPedido)) * 100)).toFixed(1) : 0;
-            const remaining = order.totalPedido ? Number(order.totalPedido) - totalProd : 'N/A';
-            
-            const handleUpdateStatusClick = async (status) => {
-                setIsUpdating(true);
-                try {
-                    const orderRef = db.collection('orders').doc(order.id);
-                    await orderRef.update({ status: status });
-                    onUpdateStatus(order.id, status);
-                } catch (error) {
-                    console.error("Error al cambiar estado en Firebase:", error);
-                    alert("Error al cambiar el estado de la orden.");
-                } finally {
-                    setIsUpdating(false);
-                }
-            };
-
-
-            return (
-                <div className="max-w-5xl mx-auto my-4 bg-white shadow-xl min-h-screen">
-                    <div className="no-print p-4 border-b bg-slate-50 flex justify-between items-center sticky top-0 z-20">
-                        <button onClick={onBack} className="text-slate-600 flex items-center gap-2 font-bold hover:text-indigo-600 transition"><Icon name="arrowLeft" /> Lista de Órdenes</button>
-                        <div className="flex gap-2">
-                            {order.status !== 'Archivado' ? (
-                                <button onClick={() => handleUpdateStatusClick('Archivado')} disabled={isUpdating} className="bg-amber-500 text-white px-3 py-2 rounded flex items-center gap-2 hover:bg-amber-600 transition">
-                                    <Icon name="archive" size={16} /> Archivar Orden
-                                </button>
-                            ) : (
-                                <span className="bg-gray-200 text-gray-600 px-3 py-2 rounded font-bold text-sm">ARCHIVADO</span>
-                            )}
-                            <button onClick={() => window.print()} className="bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-slate-900 transition">
-                                <Icon name="printer" /> Imprimir Hoja
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="p-8 print:p-4">
-                         {/* Encabezado Impresión / Digital */}
-                        <div className="flex justify-between items-start border-b-4 border-indigo-600 pb-4 mb-6">
-                            <div>
-                                <h1 className="text-4xl font-black text-slate-800 tracking-tight">{order.cliente}</h1>
-                                <div className="text-xl text-indigo-600 mt-1 font-mono font-bold">{order.displayId}</div>
-                                {/* Mostrar el nombre del repositorio */}
-                                {currentRepo && <p className="text-xs text-slate-500 mt-1">Repo: **{currentRepo.clientName}**</p>}
-                            </div>
-                            <div className="text-right">
-                                <div className="bg-slate-900 text-white px-4 py-1 text-sm font-bold uppercase mb-1 rounded-t-lg">Máquina</div>
-                                <div className="text-5xl font-black text-slate-900">{order.maquina}</div>
+                                <div className="w-5/12 border-2 border-black flex items-center justify-center relative bg-slate-50 overflow-hidden group">
+                                     <SmartImage repoUrls={config.repoUrls} codigo={order.codigo} className="max-h-full max-w-full object-contain"/>
+                                </div>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-6">
-                            <div className="lg:col-span-2">
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-6 border border-slate-300 p-4 rounded bg-slate-50">
-                                    <div className="col-span-2">
-                                        <span className="block text-xs font-bold text-slate-500 uppercase">Código Diseño</span>
-                                        <span className="text-lg font-bold">{order.codigo}</span>
+                        <div className="print-section-bottom print-only">
+                            <div className="flex-grow">
+                                <div className="border-b border-black font-bold mb-1 text-sm flex justify-between">
+                                    <span>CONTROL DE TEJIDO - PARTIDA {order.partida}</span>
+                                    <span>TOTAL PIEZAS: {order.totalPedido}</span>
+                                </div>
+                                <table className="package-table-print">
+                                    <colgroup>
+                                        <col style={{width: '5%'}} />
+                                        <col style={{width: '15%'}} /> <col style={{width: '8%'}} />
+                                        <col style={{width: '10%'}} />
+                                        <col style={{width: '10%'}} />
+                                        <col style={{width: '8%'}} />
+                                        <col style={{width: '8%'}} />
+                                        <col style={{width: '5%'}} />
+                                        <col style={{width: '31%'}} /> </colgroup>
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>CÓDIGO</th> 
+                                            <th>Cant</th>
+                                            <th>Tejedor</th>
+                                            <th>Fecha</th>
+                                            <th>Def</th>
+                                            <th>Agj</th>
+                                            <th>OK</th>
+                                            <th>OBSERVACIONES</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {order.progreso?.map((p, idx) => (
+                                            <tr key={p.id}>
+                                                <td className="text-center font-bold border-r border-black">{idx+1}</td>
+                                                <td className="pl-1 font-mono text-[8px] border-r border-black truncate" title={p.codigoUnico || p.piezaNombre}>{p.codigoUnico || p.piezaNombre}</td>
+                                                <td className="text-center font-bold border-r border-black">{p.cantidad}</td>
+                                                <td className="manual-input border-r border-black">{p.finished ? p.tejedor : '_'}</td>
+                                                <td className="manual-input border-r border-black">{p.finished ? p.fecha : '_'}</td>
+                                                <td className="manual-input border-r border-black">{p.finished ? p.defectos : '_'}</td>
+                                                <td className="manual-input border-r border-black">{p.finished ? p.agujas : '_'}</td>
+                                                <td className="manual-input border-r border-black">{p.finished ? 'OK' : '_'}</td>
+                                                <td className="manual-input">{p.observaciones || '_'}</td> </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                             </div>
+
+                             {/* --- AQUÍ ESTÁ EL PIE DE PÁGINA CON LAS FECHAS --- */}
+                             <div className="mt-auto text-center border-t border-gray-300 pt-1">
+                                <div className="text-[10px] text-gray-400 font-mono">FECHA CREACIÓN: {order.createdAt || 'N/A'}</div>
+                                <div className="text-[10px] text-gray-400 font-mono">IMPRESO: {new Date().toLocaleString('es-MX')}</div>
+                             </div>
+
+                        </div>
+
+                        <div className="no-print mt-4">
+                            <div className="bg-slate-100 p-4 rounded border mb-6">
+                                <h3 className="font-bold text-lg mb-2 text-slate-700">Registro Digital Simplificado</h3>
+                                <div className="flex gap-4 items-end mb-4 bg-white p-3 rounded shadow-sm border">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 mb-1">TEJEDOR</label>
+                                        <select 
+                                            value={entry.tejedor} 
+                                            onChange={e=>setEntry({...entry, tejedor: e.target.value})} 
+                                            className="border-2 border-slate-300 p-2 rounded w-40 font-bold text-indigo-700 focus:border-indigo-500 outline-none"
+                                        >
+                                            <option value="">Seleccionar...</option>
+                                            <option value="BALTA">BALTA</option>
+                                            <option value="ANDRÉS">ANDRÉS</option>
+                                        </select>
                                     </div>
                                     <div>
-                                        <span className="block text-xs font-bold text-slate-500 uppercase">Pieza</span>
-                                        <span className="text-lg font-bold">{order.pieza}</span>
-                                    </div>
-                                    <div>
-                                        <span className="block text-xs font-bold text-slate-500 uppercase">Talla</span>
-                                        <span className="text-lg">{order.talla}</span>
-                                    </div>
-                                    <div className="col-span-2">
-                                        <span className="block text-xs font-bold text-slate-500 uppercase">Total Pedido</span>
-                                        <span className="text-2xl font-black text-indigo-700">{order.totalPedido} pzs</span>
-                                    </div>
-                                    <div>
-                                        <span className="block text-xs font-bold text-slate-500 uppercase">Producido</span>
-                                        <span className="text-lg font-bold text-green-600">{totalProd} pzs</span>
-                                    </div>
-                                    <div>
-                                        <span className="block text-xs font-bold text-slate-500 uppercase">Restante</span>
-                                        <span className="text-lg font-bold text-red-600">{remaining} pzs</span>
+                                        <label className="block text-xs font-bold text-slate-500 mb-1">FECHA</label>
+                                        <input 
+                                            type="date" 
+                                            value={entry.fecha} 
+                                            onChange={e=>setEntry({...entry, fecha: e.target.value})} 
+                                            className="border-2 border-slate-300 p-2 rounded font-mono cursor-pointer hover:bg-slate-50"
+                                        />
                                     </div>
                                 </div>
-
-                                {/* Materiales */}
-                                <div className="mb-6">
-                                    <h3 className="font-bold border-b border-slate-400 mb-2 uppercase text-sm">Lista de Materiales</h3>
-                                    <table className="w-full text-sm">
-                                        <thead>
-                                            <tr className="bg-slate-100 text-left">
-                                                <th className="p-2">Material</th>
-                                                <th className="p-2 text-right">Consumo Est.</th>
+                                <div className="max-h-80 overflow-y-auto bg-white border rounded shadow-inner">
+                                    <table className="w-full text-xs text-left">
+                                        <thead className="bg-slate-200 sticky top-0 shadow-sm z-0">
+                                            <tr>
+                                                <th className="p-3">CÓDIGO/PIEZA</th>
+                                                <th className="p-3">Pzs</th>
+                                                <th className="p-3">Estado</th>
+                                                <th className="p-3">Acción</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {order.materiales.map((m, i) => (
-                                                <tr key={i} className="border-b border-slate-100">
-                                                    <td className="p-2">{m.material}</td>
-                                                    <td className="p-2 text-right font-mono">{m.consumo} kg</td>
+                                            {order.progreso.map(p=>(
+                                                <tr key={p.id} className="border-b hover:bg-slate-50 transition-colors">
+                                                    <td className="p-3 font-mono" title={p.codigoUnico || p.piezaNombre}>{p.codigoUnico || p.piezaNombre}</td>
+                                                    <td className="p-3 font-bold">{p.cantidad}</td>
+                                                    <td className="p-3">{p.finished ? <span className="text-green-600 font-bold bg-green-100 px-2 py-1 rounded-full text-[10px]">LISTO ({p.tejedor})</span> : <span className="text-slate-400 font-medium">PENDIENTE</span>}</td>
+                                                    <td className="p-3">{!p.finished 
+                                                        ? <button onClick={()=>markPackage(p.id)} disabled={!entry.tejedor} className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded font-bold hover:bg-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed transition">Registrar</button>
+                                                        : <button onClick={()=>unmarkPackage(p.id)} className="bg-red-100 text-red-700 px-3 py-1 rounded font-bold hover:bg-red-200 transition">Deshacer</button>}
+                                                    </td>
                                                 </tr>
                                             ))}
                                         </tbody>
                                     </table>
                                 </div>
                             </div>
-
-                            <div className="lg:col-span-1">
-                                <div className="border-2 border-slate-900 rounded bg-white p-1 flex items-center justify-center min-h-[200px] aspect-square">
-                                    {imageUrl ? (
-                                        <img src={imageUrl} alt={`Referencia ${order.codigo}`} className="max-w-full h-auto max-h-[300px] object-contain" 
-                                            onError={(e) => {
-                                                e.target.style.display='none'; 
-                                                const parent = e.target.parentElement;
-                                                parent.innerHTML = `<div class="text-center text-slate-400 p-4"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mx-auto mb-2"><path d="M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2zM8.5 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM21 15l-5-5L5 21"></path></svg><span class="text-xs uppercase font-bold">IMAGEN NO DISPONIBLE</span><p class="text-xs mt-1">**${order.codigo}.jpg** no encontrado en **${currentRepo ? currentRepo.clientName : 'Repo Desconocido'}**.</p></div>`;
-                                            }} 
-                                        />
-                                    ) : (
-                                        <div className="text-center text-slate-400">
-                                            <Icon name="image" size={48} className="mx-auto mb-2" />
-                                            <span className="text-xs uppercase font-bold">Sin Imagen</span>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="mt-4 text-center border p-3 rounded bg-indigo-50">
-                                    <div className="text-xs font-bold text-indigo-400 uppercase">Progreso Total</div>
-                                    <div className="text-5xl font-black text-indigo-800">{porcentaje}%</div>
-                                    <div className="text-sm font-bold text-slate-600">{totalProd} de {order.totalPedido} pzs</div>
-                                </div>
-                            </div>
                         </div>
-                        
-                        {/* Área de Notas / Enhebrado */}
-                        <div className="mb-8 p-4 border border-dashed border-slate-400 rounded bg-slate-50 no-print">
-                            <label className="text-xs font-bold text-slate-600 uppercase block mb-2">Notas de Enhebrado / Ajustes de Máquina:</label>
-                            <textarea 
-                                className="w-full p-2 border rounded text-sm font-mono" 
-                                rows="3" 
-                                value={notes}
-                                onChange={e => setNotes(e.target.value)}
-                                onBlur={handleNotesChange}
-                                placeholder="Escribe aquí cualquier ajuste crítico, número de agujas, o notas importantes para el tejedor."
-                            ></textarea>
-                            <p className="text-xs text-right text-slate-500">{isUpdating ? 'Guardando...' : 'Haz clic afuera para guardar la nota.'}</p>
-                        </div>
-                        
-                        {/* Área de Notas de Impresión */}
-                        <div className="mb-8 print-only">
-                            <h3 className="text-sm font-bold uppercase text-slate-700 mb-1">Notas de Enhebrado / Ajustes:</h3>
-                            <p className="border border-slate-300 p-2 text-sm min-h-[60px] font-mono whitespace-pre-wrap">{order.enhebrado}</p>
-                        </div>
-
-
-                        {/* --- ÁREA DE CAPTURA MANUAL (Solo para imprimir) --- */}
-                        <div className="print-only mt-8">
-                            <h3 className="text-lg font-bold uppercase mb-2 border-b-2 border-black">Hoja de Captura Diaria (Manual)</h3>
-                            <table className="w-full text-sm border-collapse border border-black">
-                                <thead>
-                                    <tr className="bg-slate-200">
-                                        <th className="border border-black p-2 w-24">Fecha</th>
-                                        <th className="border border-black p-2 w-16">Turno</th>
-                                        <th className="border border-black p-2">Nombre Tejedor</th>
-                                        <th className="border border-black p-2 w-20">Prod. (Pzs)</th>
-                                        <th className="border border-black p-2 w-20">Defectos</th>
-                                        <th className="border border-black p-2">Observaciones / Agujas</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {[...Array(15)].map((_, i) => (
-                                        <tr key={i} className="h-10">
-                                            <td className="border border-black"></td>
-                                            <td className="border border-black"></td>
-                                            <td className="border border-black"></td>
-                                            <td className="border border-black"></td>
-                                            <td className="border border-black"></td>
-                                            <td className="border border-black"></td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                            <div className="mt-2 text-xs text-right italic">Sistema de Control v2.1 - {order.displayId}</div>
-                        </div>
-
-                        {/* --- SISTEMA DIGITAL (No imprimir) --- */}
-                        <div className="no-print mt-8 bg-slate-100 p-6 rounded-xl">
-                            <h3 className="font-bold text-slate-700 mb-4 border-b pb-2">Captura Digital de Producción</h3>
-                            
-                            <div className="flex flex-col sm:flex-row gap-2 mb-4 items-end">
-                                <div className="flex-grow">
-                                    <label className="text-xs text-slate-500 block">Fecha</label>
-                                    <input type="date" className="p-2 border rounded w-full" value={entry.fecha} onChange={e=>setEntry({...entry, fecha: e.target.value})} />
-                                </div>
-                                <div className="w-full sm:w-32">
-                                     <label className="text-xs text-slate-500 block">Tejedor</label>
-                                    <input type="text" placeholder="Nombre" className="p-2 border rounded w-full" value={entry.tejedor} onChange={e=>setEntry({...entry, tejedor: e.target.value})} />
-                                </div>
-                                <div className="w-full sm:w-20">
-                                    <label className="text-xs text-slate-500 block font-bold text-green-700">Pzs Producidas</label>
-                                    <input type="number" placeholder="Pzs" className="p-2 border rounded w-full font-bold text-right" value={entry.produccion} onChange={e=>setEntry({...entry, produccion: e.target.value})} />
-                                </div>
-                                <div className="flex-1">
-                                     <label className="text-xs text-slate-500 block">Observaciones / Defectos</label>
-                                    <input type="text" placeholder="Obs." className="p-2 border rounded w-full" value={entry.defectos} onChange={e=>setEntry({...entry, defectos: e.target.value})} />
-                                </div>
-                                <button onClick={addProgress} className="bg-green-600 text-white p-2 h-10 w-full sm:w-auto rounded hover:bg-green-700 transition" disabled={isUpdating}>
-                                    <Icon name="plus" />
-                                </button>
-                            </div>
-
-                            <div className="max-h-96 overflow-y-auto mt-4">
-                                <table className="w-full text-sm bg-white rounded shadow-sm border">
-                                    <thead className="bg-slate-200 text-slate-700 sticky top-0">
-                                        <tr>
-                                            <th className="p-2 text-left w-24">Fecha</th>
-                                            <th className="p-2 text-left w-24">Tejedor</th>
-                                            <th className="p-2 text-right w-16">Prod.</th>
-                                            <th className="p-2 text-left">Obs.</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {/* Invertir el orden para mostrar lo más reciente arriba */}
-                                        {order.progreso?.slice().reverse().map((p, i) => (
-                                            <tr key={p.id} className="border-b hover:bg-green-50/50">
-                                                <td className="p-2">{p.fecha}</td>
-                                                <td className="p-2 font-medium">{p.tejedor}</td>
-                                                <td className="p-2 text-right font-bold text-green-700">{p.produccion}</td>
-                                                <td className="p-2 text-slate-500">{p.defectos}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                                {order.progreso?.length === 0 && (
-                                    <div className="text-center p-4 text-slate-400 italic">No hay registros de producción aún.</div>
-                                )}
-                            </div>
-                        </div>
-
                     </div>
                 </div>
             );
         };
 
-        // --- Componente Principal de la Aplicación (Modificado para usar Firebase) ---
-        const MainApp = () => {
-            const [view, setView] = useState('list');
-            const [orders, setOrders] = useState([]);
-            const [selectedOrder, setSelectedOrder] = useState(null);
-            const [filterClient, setFilterClient] = useState('ALL');
-            const [showArchived, setShowArchived] = useState(false);
-            const [showSettings, setShowSettings] = useState(false);
-            const [loading, setLoading] = useState(true);
-            
-            // Configuración Global - Ahora incluye 'repositories'
-            const [config, setConfig] = useState({
-                sequenceCounter: 1,
-                repositories: [] // Nuevo array para múltiples repositorios
-            });
+        const ThreadingEditor = ({ data, onChange, inventoryKeys }) => {
+            const addRow = () => onChange([...data, { id: Date.now(), guia: '', material: '', sis: '', porcentaje: '' }]);
+            const updateRow = (id, field, val) => onChange(data.map(r => r.id === id ? { ...r, [field]: val } : r));
+            const removeRow = (id) => onChange(data.filter(r => r.id !== id));
+            return (
+                <div className="border rounded bg-white overflow-hidden my-4">
+                    <div className="bg-slate-200 p-2 text-xs font-bold flex justify-between"><span>TABLA DE ENHEBRADO</span><button onClick={addRow} className="text-indigo-600 font-bold">+ Fila</button></div>
+                    <table className="w-full text-xs text-left">
+                        <thead className="bg-slate-50"><tr><th className="p-2">GUÍA</th><th className="p-2">MATERIAL</th><th className="p-2 w-16 text-center">%</th><th></th></tr></thead>
+                        <tbody>{data.map((row) => (<tr key={row.id}><td className="p-1"><input className="w-full border rounded p-1" placeholder="#" value={row.guia} onChange={toUppercase(e=>updateRow(row.id,'guia',e.target.value))} /></td><td className="p-1"><input list="inv" className="w-full border rounded p-1" value={row.material} onChange={toUppercase(e=>updateRow(row.id,'material',e.target.value))} /></td><td className="p-1"><input className="w-full border rounded p-1 text-center" value={row.porcentaje} onChange={e=>updateRow(row.id,'porcentaje',e.target.value)} /></td><td className="p-1"><button onClick={()=>removeRow(row.id)} className="text-red-400"><Icon name="x" size={14}/></button></td></tr>))}</tbody>
+                    </table>
+                    <datalist id="inv">{inventoryKeys.map(k=><option key={k} value={k}/>)}</datalist>
+                </div>
+            );
+        };
 
-            // --- CARGA INICIAL DE DATOS DESDE FIREBASE ---
-            const fetchInitialData = useCallback(async () => {
-                if (!db) return;
+        const SettingsModal = ({ config, onClose }) => {
+            const [localUrls, setLocalUrls] = useState(config.repoUrls || []);
+            const [newUrl, setNewUrl] = useState('');
+            const save = async () => { await db.collection('settings').doc('config').set({ ...config, repoUrls: localUrls }); onClose(); };
+            return (<div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><div className="bg-white p-6 rounded w-96"><h3 className="font-bold mb-4">Configuración Imágenes</h3><div className="mb-2 max-h-40 overflow-y-auto">{localUrls.map((u,i)=><div key={i} className="text-xs truncate mb-1 border p-1 flex justify-between"><span>{u}</span><button onClick={()=>setLocalUrls(localUrls.filter((_,x)=>x!==i))} className="text-red-500 font-bold">X</button></div>)}</div><div className="flex gap-2 mb-4"><input value={newUrl} onChange={e=>setNewUrl(e.target.value)} className="border p-1 flex-1 text-xs" placeholder="URL GitHub Raw"/><button onClick={()=>{if(newUrl)setLocalUrls([...localUrls,newUrl]);setNewUrl('')}} className="bg-blue-100 text-blue-700 px-2 font-bold">+</button></div><button onClick={save} className="bg-slate-900 text-white w-full py-2 rounded font-bold">Guardar</button></div></div>);
+        };
 
-                setLoading(true);
-                try {
-                    // 1. Cargar Configuración
-                    const configDoc = await db.collection('config').doc('GLOBAL_CONFIG').get();
-                    if (configDoc.exists) {
-                        const data = configDoc.data();
-                        setConfig({
-                            sequenceCounter: data.sequenceCounter || 1,
-                            repositories: data.repositories || [] // Cargar repositorios
-                        });
-                    } else {
-                        // Si no existe, crear un documento de configuración inicial
-                        await db.collection('config').doc('GLOBAL_CONFIG').set(config);
-                    }
-
-                    // 2. Cargar Órdenes
-                    const ordersSnapshot = await db.collection('orders').get();
-                    const fetchedOrders = ordersSnapshot.docs.map(doc => ({
-                        id: doc.id, 
-                        ...doc.data()
-                    }));
-                    setOrders(fetchedOrders);
-                    
-                } catch (e) {
-                    console.error("Error cargando datos de Firebase:", e);
-                    alert("No se pudieron cargar los datos iniciales. Revise la consola.");
-                } finally {
-                    setLoading(false);
-                }
-            }, []);
-
-            useEffect(() => {
-                fetchInitialData();
-            }, [fetchInitialData]);
-
-
-            // --- MANEJADORES DE ACTUALIZACIÓN DE ESTADO ---
-
-            const handleSaveNewOrders = (newOrdersList, newSequenceCounter) => {
-                setOrders(prev => [...newOrdersList, ...prev]);
-                setConfig(prev => ({...prev, sequenceCounter: newSequenceCounter}));
-                setView('list');
-            };
-            
-            const handleUpdateProgress = (orderId, newProgress) => {
-                setOrders(prev => prev.map(o => o.id === orderId ? { ...o, progreso: newProgress } : o));
-                setSelectedOrder(prev => prev && prev.id === orderId ? { ...prev, progreso: newProgress } : prev);
-            };
-
-            const handleUpdateNotes = (orderId, newNotes) => {
-                setOrders(prev => prev.map(o => o.id === orderId ? { ...o, enhebrado: newNotes } : o));
-                setSelectedOrder(prev => prev && prev.id === orderId ? { ...prev, enhebrado: newNotes } : prev);
-            };
-
-            const handleUpdateStatus = (orderId, status) => {
-                const updated = orders.map(o => o.id === orderId ? { ...o, status } : o);
-                setOrders(updated);
-                
-                if (status === 'Archivado') {
-                    setView('list');
-                    setSelectedOrder(null);
-                } else if (selectedOrder && selectedOrder.id === orderId) {
-                    setSelectedOrder(prev => ({...prev, status}));
-                }
-            };
-
-            // Lista única de clientes para el filtro
-            const clients = useMemo(() => [...new Set(orders.map(o => o.cliente))], [orders]);
-
-            // Filtrado de órdenes
-            const filteredOrders = useMemo(() => orders.filter(o => {
-                const matchClient = filterClient === 'ALL' || o.cliente === filterClient;
-                const matchStatus = showArchived ? o.status === 'Archivado' : o.status !== 'Archivado';
-                return matchClient && matchStatus;
-            }).sort((a, b) => {
-                if (a.displayId < b.displayId) return -1;
-                if (a.displayId > b.displayId) return 1;
-                return 0;
-            }), [orders, filterClient, showArchived]);
-            
-            // Vista de Carga
-            if (loading) {
-                 return (
-                    <div className="min-h-screen flex items-center justify-center bg-slate-100">
-                        <div className="text-center p-8 bg-white rounded-lg shadow-xl">
-                             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-                             <p className="text-lg font-bold text-indigo-700">Cargando datos de Firebase...</p>
+        const ImageGallery = ({ config, onClose, orders }) => {
+            const [filter, setFilter] = useState('');
+            const allCodes = useMemo(() => {
+                const uniqueCodes = new Set(orders.map(o => o.codigo).filter(c => c));
+                return Array.from(uniqueCodes).sort();
+            }, [orders]);
+            const filteredCodes = useMemo(() => {
+                if (!filter) return allCodes;
+                return allCodes.filter(c => c.toUpperCase().includes(filter.toUpperCase()));
+            }, [allCodes, filter]);
+            return (
+                <div className="fixed inset-0 bg-black/80 z-[60] flex flex-col items-center justify-center p-4">
+                    <div className="bg-white p-6 rounded-lg shadow-2xl w-full max-w-4xl h-full flex flex-col">
+                        <div className="flex justify-between items-center mb-4 border-b pb-2 shrink-0">
+                            <h3 className="font-bold text-xl text-indigo-700 flex items-center gap-2"><Icon name="images"/> Galería de Modelos</h3>
+                            <button onClick={onClose} className="bg-red-500 hover:bg-red-600 text-white rounded-md p-2 shadow-lg flex items-center gap-1 font-bold text-xs transition-transform hover:scale-105">
+                                <Icon name="x" size={18}/> CERRAR
+                            </button>
+                        </div>
+                        <input type="text" placeholder="Filtrar por código de modelo..." value={filter} onChange={(e) => setFilter(e.target.value)} className="w-full p-2 mb-4 border rounded shadow-sm" />
+                        <div className="flex-grow overflow-y-auto grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 p-2">
+                            {config.repoUrls && config.repoUrls.map((repo, idx) => (
+                                <div key={idx} className="col-span-full border-b pb-2 mb-2">
+                                    <h4 className="font-bold text-sm text-slate-600 mb-2">Carpeta: <span className="font-mono text-xs">{repo}</span></h4>
+                                    <div className="grid grid-cols-subgrid gap-4">
+                                        {filteredCodes.map(codigo => (
+                                            <div key={`${repo}-${codigo}`} className="aspect-square border rounded shadow overflow-hidden flex flex-col">
+                                                <SmartImage repoUrls={[repo]} codigo={codigo} className="w-full h-2/3 object-contain bg-slate-100 p-1" />
+                                                <div className="text-center text-xs font-bold p-1 bg-gray-100 h-1/3 flex items-center justify-center">{codigo}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                            {!config.repoUrls && <div className="text-center text-slate-500 col-span-full">Configura las URLs de los repositorios en Ajustes.</div>}
                         </div>
                     </div>
-                );
-            }
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [view, setView] = useState('dashboard');
+            const [orders, setOrders] = useState([]);
+            const [config, setConfig] = useState({});
+            const [inventory, setInventory] = useState({});
+            const [selectedOrder, setSelectedOrder] = useState(null);
+            const [formProps, setFormProps] = useState({ initialOrder: null, isEditing: false }); 
+            const [showSettings, setShowSettings] = useState(false);
+            const [showImport, setShowImport] = useState(false);
+            const [showGallery, setShowGallery] = useState(false);
+            const [viewMode, setViewMode] = useState('active'); // 'active' o 'history'
+
+            useEffect(() => {
+                const u1 = db.collection('orders').onSnapshot(s => setOrders(s.docs.map(d=>d.data())));
+                const u2 = db.collection('settings').doc('config').onSnapshot(d => setConfig(d.data() || {}));
+                const u3 = db.collection('inventory').doc('main').onSnapshot(d => setInventory(d.data() || {}));
+                setTimeout(()=>lucide.createIcons(), 500);
+                return () => { u1(); u2(); u3(); };
+            }, []);
+            useEffect(()=>lucide.createIcons(), [view, orders, viewMode]);
+
+            // FILTRO MODIFICADO PARA SOPORTAR HISTORIAL
+            const displayedOrders = useMemo(() => {
+                if(viewMode === 'active') {
+                    return orders.filter(o => o.status !== 'ARCHIVADO');
+                } else {
+                    return orders.filter(o => o.status === 'ARCHIVADO');
+                }
+            }, [orders, viewMode]);
+
+            const allClients = [...new Set(orders.map(o => o.cliente))].sort();
+            
+            const handleImportData = (data) => {
+                setFormProps({ initialOrder: data, isEditing: false });
+                setShowImport(false);
+                setView('create');
+            };
+
+            const handleEditOrder = (order) => {
+                setFormProps({ initialOrder: order, isEditing: true });
+                setView('create');
+                setSelectedOrder(null);
+            };
 
             return (
-                <div className="min-h-screen bg-slate-100 font-sans text-slate-800">
-                    {/* Barra de Navegación */}
-                    <nav className="bg-slate-900 text-white p-4 no-print shadow-md">
-                        <div className="max-w-7xl mx-auto flex justify-between items-center">
-                            <div className="flex items-center gap-3">
-                                <div className="bg-indigo-500 p-2 rounded-lg">
-                                    <Icon name="folder" className="text-white" />
-                                </div>
-                                <div>
-                                    <h1 className="font-bold text-lg leading-tight">Control Textil (FB)</h1>
-                                    <p className="text-xs text-slate-400">Gestión de Producción v2.1</p>
-                                </div>
-                            </div>
-                            <div className="flex gap-4">
-                                <span className="text-xs text-slate-400 mt-2 hidden md:block">Próximo ID Lote: {generateID("X", config.sequenceCounter, "")}</span>
-                                <button onClick={() => setShowSettings(true)} className="p-2 hover:bg-slate-800 rounded-full transition">
-                                    <Icon name="settings" />
-                                </button>
-                            </div>
-                        </div>
-                    </nav>
+                <div className="h-screen bg-slate-100 overflow-hidden">
+                    {view === 'create' && <div className="absolute inset-0 z-50 bg-black/50 flex items-center justify-center"><MultiOrderForm config={config} onCancel={()=>setView('dashboard')} initialOrder={formProps.initialOrder} clientHistory={allClients} inventory={inventory} isEditing={formProps.isEditing}/></div>}
+                    
+                    {view === 'detail' && selectedOrder && <div className="absolute inset-0 z-40 bg-white overflow-y-auto print-visible-wrapper"><OrderView order={orders.find(o=>o.id===selectedOrder.id) || selectedOrder} config={config} onBack={()=>setView('dashboard')} onEdit={handleEditOrder}/></div>}
+                    
+                    {showSettings && <SettingsModal config={config} onClose={()=>setShowSettings(false)} />}
+                    {showImport && <ImportModal onClose={()=>setShowImport(false)} onImport={handleImportData} />}
+                    {showGallery && <ImageGallery config={config} onClose={()=>setShowGallery(false)} orders={orders} />}
 
-                    {/* Contenido Principal */}
-                    {view === 'list' && (
-                        <div className="max-w-7xl mx-auto p-6">
-                            
-                            <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-                                <div className="flex gap-2 overflow-x-auto pb-2 w-full md:w-auto">
-                                    {/* Botones de Filtro por Cliente */}
-                                    <button 
-                                        onClick={() => setFilterClient('ALL')}
-                                        className={`px-4 py-2 rounded-full text-sm font-bold transition whitespace-nowrap ${filterClient === 'ALL' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-600 hover:bg-indigo-50 border'}`}
-                                    >
-                                        Todos ({orders.length})
-                                    </button>
-                                    {clients.map(c => (
-                                        <button 
-                                            key={c}
-                                            onClick={() => setFilterClient(c)}
-                                            className={`px-4 py-2 rounded-full text-sm font-bold transition whitespace-nowrap ${filterClient === c ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-600 hover:bg-indigo-50 border'}`}
-                                        >
-                                            {c} ({orders.filter(o => o.cliente === c).length})
-                                        </button>
-                                    ))}
-                                </div>
-
-                                <div className="flex gap-2 w-full md:w-auto">
-                                    <button onClick={() => setShowArchived(!showArchived)} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition w-1/2 md:w-auto ${showArchived ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-white text-slate-600 hover:bg-slate-50 border'}`}>
-                                        <Icon name="archive" size={16} /> {showArchived ? 'Activas' : 'Archivadas'}
-                                    </button>
-                                    <button onClick={() => setView('create')} className="bg-indigo-600 text-white px-6 py-2 rounded-lg shadow-lg hover:bg-indigo-700 font-bold flex items-center justify-center gap-2 w-1/2 md:w-auto transition">
-                                        <Icon name="plus" /> Nuevo Lote
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                                {filteredOrders.map(order => {
-                                    const totalProd = order.progreso?.reduce((acc, curr) => acc + Number(curr.produccion), 0) || 0;
-                                    const percentage = order.totalPedido ? Math.min(100, ((totalProd / Number(order.totalPedido)) * 100)).toFixed(0) : 0;
-                                    const isCompleted = percentage >= 100;
+                    <div className="dashboard-grid">
+                        <div className="top-pane bg-slate-100 p-4">
+                            <div className="flex justify-between items-center mb-4">
+                                <h1 className="text-2xl font-black text-slate-800 flex gap-2 items-center">
+                                    <Icon name="layout-dashboard"/> 
+                                    <span>{viewMode === 'active' ? 'PLANTA' : 'HISTORIAL'}</span>
+                                    <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded ml-2">v2.1 PWA</span>
+                                </h1>
+                                <div className="flex gap-2 items-center">
+                                    <InstallButton />
                                     
-                                    return (
-                                        <div key={order.id} onClick={() => { setSelectedOrder(order); setView('detail'); }} 
-                                            className="bg-white rounded-xl shadow-md border border-slate-200 cursor-pointer hover:shadow-xl hover:-translate-y-1 transition group overflow-hidden"
-                                        >
-                                            <div className={`h-2 w-full ${isCompleted ? 'bg-green-500' : 'bg-indigo-500'}`}></div>
-                                            <div className="p-5">
-                                                <div className="flex justify-between items-start mb-2">
-                                                    <span className="font-mono text-xs font-bold text-slate-400">{order.displayId}</span>
-                                                    <span className={`text-xs px-2 py-1 rounded font-bold ${order.status === 'Archivado' ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700'}`}>{order.status === 'Archivado' ? 'Archivado' : `MQ-${order.maquina}`}</span>
-                                                </div>
-                                                <h3 className="font-bold text-lg text-slate-800 mb-1">{order.pieza}</h3>
-                                                <p className="text-sm text-slate-500 mb-4">{order.codigo}</p>
-                                                
-                                                {/* Barra de Progreso */}
-                                                <div className="mb-4">
-                                                    <div className="flex justify-between text-xs font-bold mb-1">
-                                                        <span>Progreso: {percentage}%</span>
-                                                        <span>{totalProd}/{order.totalPedido} pzs</span>
-                                                    </div>
-                                                    <div className="w-full bg-slate-200 rounded-full h-2">
-                                                        <div 
-                                                            className={`h-2 rounded-full ${isCompleted ? 'bg-green-500' : 'bg-indigo-500'}`} 
-                                                            style={{ width: `${percentage}%` }}
-                                                        ></div>
-                                                    </div>
-                                                </div>
+                                    {/* BOTÓN PARA CAMBIAR ENTRE ACTIVOS E HISTORIAL */}
+                                    <button onClick={()=>setViewMode(viewMode === 'active' ? 'history' : 'active')} className={`px-4 py-2 rounded font-bold shadow flex items-center gap-2 text-xs transition ${viewMode === 'active' ? 'bg-orange-500 hover:bg-orange-600 text-white' : 'bg-slate-700 text-white'}`}>
+                                        <Icon name={viewMode === 'active' ? 'history' : 'activity'}/> 
+                                        {viewMode === 'active' ? 'HISTORIAL' : 'VER PLANTA'}
+                                    </button>
 
-                                                <div className="flex justify-between items-end border-t pt-3">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-xs border">
-                                                            {order.cliente.substring(0,2).toUpperCase()}
-                                                        </div>
-                                                        <span className="text-xs font-bold text-slate-700">{order.cliente}</span>
-                                                    </div>
-                                                    <div className="text-right">
-                                                        <span className="block text-xs text-slate-400">Entrega</span>
-                                                        <span className="text-xs font-bold text-indigo-600">{order.fechaFin || 'S/F'}</span>
-                                                    </div>
-                                                </div>
+                                    <button onClick={()=>setShowGallery(true)} className="bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded font-bold shadow flex items-center gap-2 text-xs"><Icon name="image-search"/> GALERÍA</button>
+                                    <button onClick={()=>setShowSettings(true)} className="bg-slate-300 hover:bg-slate-400 text-slate-800 p-2 rounded shadow"><Icon name="settings"/></button>
+                                    
+                                    {viewMode === 'active' && (
+                                        <>
+                                            <button onClick={()=>{setFormProps({initialOrder:null, isEditing: false}); setView('create')}} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold shadow flex items-center gap-2"><Icon name="plus"/> MANUAL</button>
+                                            <button onClick={()=>setShowImport(true)} className="bg-green-600 text-white px-4 py-2 rounded font-bold shadow flex items-center gap-2"><Icon name="file-spreadsheet"/> IMPORTAR</button>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                {displayedOrders.sort((a,b)=>b.id-a.id).map(o => {
+                                    const pct = Math.round((o.progreso.filter(p=>p.finished).length / o.progreso.length)*100);
+                                    return (
+                                        <div key={o.id} onClick={()=>{setSelectedOrder(o); setView('detail')}} className={`p-3 rounded shadow border-l-4 cursor-pointer hover:shadow-lg transition ${o.status === 'ARCHIVADO' ? 'bg-slate-200 border-slate-500 opacity-75' : 'bg-white border-indigo-500'}`}>
+                                            <div className="flex justify-between items-start">
+                                                <div className="font-bold text-lg">{o.codigo}</div>
+                                                <div className="bg-slate-200 text-slate-700 text-xs px-2 py-1 rounded font-bold">MQ-{o.maquina}</div>
                                             </div>
+                                            <div className="text-xs font-bold text-indigo-800 mt-1">PARTIDA: {o.partida}</div>
+                                            <div className="text-[10px] text-slate-400">Total: {o.totalPedido} pzs</div>
+                                            <div className="mt-2 w-full bg-slate-100 h-2 rounded overflow-hidden">
+                                                <div className={`${o.status === 'ARCHIVADO' ? 'bg-slate-500' : 'bg-green-500'} h-full`} style={{width:`${pct}%`}}></div>
+                                            </div>
+                                            {o.status === 'ARCHIVADO' && <div className="text-center text-[10px] font-bold text-slate-500 mt-1">ARCHIVADO</div>}
                                         </div>
                                     );
                                 })}
+                                {displayedOrders.length === 0 && <div className="col-span-4 text-center text-slate-400 py-10 font-bold">No hay órdenes en esta vista.</div>}
                             </div>
-                            
-                            {filteredOrders.length === 0 && (
-                                <div className="text-center py-20 opacity-50">
-                                    <Icon name="folder" size={64} className="mx-auto mb-4 text-slate-300" />
-                                    <p>No hay órdenes para mostrar en esta vista.</p>
-                                </div>
-                            )}
                         </div>
-                    )}
-
-                    {view === 'create' && (
-                        <MultiOrderForm 
-                            config={config} 
-                            onSave={handleSaveNewOrders} 
-                            onCancel={() => setView('list')} 
-                        />
-                    )}
-
-                    {view === 'detail' && selectedOrder && (
-                        <OrderView 
-                            order={selectedOrder}
-                            config={config}
-                            onBack={() => { setView('list'); setSelectedOrder(null); }}
-                            onUpdateProgress={handleUpdateProgress}
-                            onUpdateStatus={handleUpdateStatus}
-                            onUpdateNotes={handleUpdateNotes}
-                        />
-                    )}
-
-                    {showSettings && (
-                        <SettingsModal 
-                            config={config} 
-                            onClose={() => setShowSettings(false)} 
-                            onSave={(newConf) => { setConfig(newConf); setShowSettings(false); }} 
-                        />
-                    )}
+                        
+                        {viewMode === 'active' && <DashboardBottom activeOrders={displayedOrders} />}
+                        {viewMode === 'history' && <div className="bg-slate-800 text-white flex items-center justify-center p-10 font-bold text-xl opacity-50">MODO HISTORIAL - SOLO LECTURA</div>}
+                        
+                    </div>
                 </div>
             );
         };
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<MainApp />);
+        root.render(<App />);
     </script>
 </body>
 </html>
