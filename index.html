@@ -183,7 +183,7 @@
                         cantidad: cantidad, 
                         paqueteNum: i, 
                         paquetesDePieza: n, 
-                        codigoUnico: codigoUnico,
+                        codigoUnico: codigoUnico, 
                         finished: false 
                     });
                     pkgCounter++;
@@ -447,6 +447,52 @@
                     }
                 }
 
+                // =======================================================
+                // NUEVA LÓGICA: DESCONTAR INVENTARIO AUTOMÁTICAMENTE
+                // =======================================================
+                // Solo descontamos si es una NUEVA ORDEN para evitar errores al editar
+                if (!isEditing && inventory && Array.isArray(inventory)) {
+                    const totalKg = totalOrderWeight / 1000; // Gramos a Kilos
+                    let updatedInventoryItems = [...inventory]; // Copia local para modificar
+                    let inventoryChanged = false;
+
+                    threadingData.forEach(row => {
+                        const pct = parseFloat(row.porcentaje) || 0;
+                        if (pct > 0 && row.material) {
+                            // Calcular consumo
+                            const consumedKg = totalKg * (pct / 100);
+                            
+                            // Buscar en inventario
+                            const itemIndex = updatedInventoryItems.findIndex(i => i.material === row.material);
+                            
+                            if (itemIndex > -1) {
+                                const currentStock = parseFloat(updatedInventoryItems[itemIndex].stock) || 0;
+                                // Restar stock (evitar negativos si se desea, aquí permitimos 0)
+                                const newStock = Math.max(0, currentStock - consumedKg);
+                                
+                                // Actualizar objeto en array
+                                updatedInventoryItems[itemIndex] = {
+                                    ...updatedInventoryItems[itemIndex],
+                                    stock: newStock.toFixed(2) // Guardar con 2 decimales
+                                };
+                                inventoryChanged = true;
+                            }
+                        }
+                    });
+
+                    // Si hubo cambios, escribir en Firebase la nueva lista de inventario
+                    if (inventoryChanged) {
+                        try {
+                            await db.collection('inventory').doc('main').update({ items: updatedInventoryItems });
+                            console.log("Inventario actualizado con éxito.");
+                        } catch (err) {
+                            console.error("Error actualizando inventario:", err);
+                            alert("Advertencia: La orden se guardará, pero hubo un error descontando el inventario.");
+                        }
+                    }
+                }
+                // =======================================================
+
                 const displayId = generateSmartID(header.partida, pieces, header.maquina);
                 const creationDate = isEditing 
                     ? (initialOrder.createdAt || new Date().toLocaleString('es-MX')) 
@@ -466,7 +512,7 @@
                 };
                 try { 
                     await db.collection('orders').doc(String(orderPayload.id)).set(orderPayload);
-                    alert(`Orden ${isEditing ? 'Actualizada' : 'Guardada'}`);
+                    alert(`Orden ${isEditing ? 'Actualizada' : 'Guardada y Material Descontado'}`);
                     onCancel(); 
                 } catch(e) { 
                     console.error(e);
@@ -513,7 +559,7 @@
 
                     <div className="flex gap-4 mt-4">
                         {!predefinedPackages && <div className="w-32"><label className="text-xs font-bold">Pzs/Paquete</label><input type="number" value={packageSize} onChange={e=>setPackageSize(e.target.value)} className="border p-2 rounded w-full"/></div>}
-                        <button onClick={handleSubmit} className="flex-1 bg-slate-900 text-white font-bold rounded shadow hover:bg-slate-800 py-3">{isEditing ? 'GUARDAR CAMBIOS' : 'CREAR ORDEN'}</button>
+                        <button onClick={handleSubmit} className="flex-1 bg-slate-900 text-white font-bold rounded shadow hover:bg-slate-800 py-3">{isEditing ? 'GUARDAR CAMBIOS' : 'CREAR ORDEN Y DESCONTAR INVENTARIO'}</button>
                     </div>
                 </div>
             );
@@ -942,7 +988,7 @@
                                 <h1 className="text-2xl font-black text-slate-800 flex gap-2 items-center">
                                     <Icon name="layout-dashboard"/> 
                                     <span>{viewMode === 'active' ? 'PLANTA' : 'HISTORIAL'}</span>
-                                    <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded ml-2">v2.5 STOCK</span>
+                                    <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded ml-2">v2.6 DESCUENTO</span>
                                 </h1>
                                 <div className="flex gap-2 items-center">
                                     <InstallButton />
