@@ -448,46 +448,71 @@
                 }
 
                 // =======================================================
-                // NUEVA LÓGICA: DESCONTAR INVENTARIO AUTOMÁTICAMENTE
+                // LÓGICA DE INVENTARIO CORREGIDA (EDICIÓN Y CREACIÓN)
                 // =======================================================
-                // Solo descontamos si es una NUEVA ORDEN para evitar errores al editar
-                if (!isEditing && inventory && Array.isArray(inventory)) {
-                    const totalKg = totalOrderWeight / 1000; // Gramos a Kilos
-                    let updatedInventoryItems = [...inventory]; // Copia local para modificar
+                if (inventory && Array.isArray(inventory)) {
+                    let updatedInventoryItems = [...inventory]; 
                     let inventoryChanged = false;
+
+                    // PASO 1: SI ES EDICIÓN, PRIMERO "DEVOLVEMOS" EL MATERIAL DE LA ORDEN ANTERIOR
+                    if (isEditing && initialOrder) {
+                        // Calcular el peso total que tenía la orden antes de editar
+                        const oldTotalWeight = initialOrder.subPiecesData.reduce((sum, p) => sum + ((Number(p.totalPedido)||0) * (Number(p.peso)||0)), 0);
+                        const oldTotalKg = oldTotalWeight / 1000;
+
+                        initialOrder.threading.forEach(row => {
+                            const pct = parseFloat(row.porcentaje) || 0;
+                            if (pct > 0 && row.material) {
+                                // Calcular cuánto se descontó originalmente
+                                const consumedKg = oldTotalKg * (pct / 100);
+                                
+                                // Buscar el item y SUMARLE (devolver) el stock
+                                const itemIndex = updatedInventoryItems.findIndex(i => i.material === row.material);
+                                if (itemIndex > -1) {
+                                    const currentStock = parseFloat(updatedInventoryItems[itemIndex].stock) || 0;
+                                    updatedInventoryItems[itemIndex] = {
+                                        ...updatedInventoryItems[itemIndex],
+                                        stock: (currentStock + consumedKg).toFixed(2)
+                                    };
+                                    inventoryChanged = true;
+                                }
+                            }
+                        });
+                    }
+
+                    // PASO 2: DESCONTAR EL MATERIAL CON LOS DATOS NUEVOS (SEA EDICIÓN O NUEVA)
+                    // Usamos totalOrderWeight (calculado al inicio de la función) que tiene los datos actuales del formulario
+                    const newTotalKg = totalOrderWeight / 1000;
 
                     threadingData.forEach(row => {
                         const pct = parseFloat(row.porcentaje) || 0;
                         if (pct > 0 && row.material) {
-                            // Calcular consumo
-                            const consumedKg = totalKg * (pct / 100);
+                            // Calcular nuevo consumo
+                            const consumedKg = newTotalKg * (pct / 100);
                             
-                            // Buscar en inventario
+                            // Buscar y RESTAR
                             const itemIndex = updatedInventoryItems.findIndex(i => i.material === row.material);
-                            
                             if (itemIndex > -1) {
                                 const currentStock = parseFloat(updatedInventoryItems[itemIndex].stock) || 0;
-                                // Restar stock (evitar negativos si se desea, aquí permitimos 0)
                                 const newStock = Math.max(0, currentStock - consumedKg);
                                 
-                                // Actualizar objeto en array
                                 updatedInventoryItems[itemIndex] = {
                                     ...updatedInventoryItems[itemIndex],
-                                    stock: newStock.toFixed(2) // Guardar con 2 decimales
+                                    stock: newStock.toFixed(2)
                                 };
                                 inventoryChanged = true;
                             }
                         }
                     });
 
-                    // Si hubo cambios, escribir en Firebase la nueva lista de inventario
+                    // PASO 3: GUARDAR CAMBIOS EN FIREBASE
                     if (inventoryChanged) {
                         try {
                             await db.collection('inventory').doc('main').update({ items: updatedInventoryItems });
-                            console.log("Inventario actualizado con éxito.");
+                            console.log("Inventario actualizado (Reajuste realizado).");
                         } catch (err) {
                             console.error("Error actualizando inventario:", err);
-                            alert("Advertencia: La orden se guardará, pero hubo un error descontando el inventario.");
+                            alert("Advertencia: Hubo un error sincronizando el inventario.");
                         }
                     }
                 }
@@ -512,7 +537,7 @@
                 };
                 try { 
                     await db.collection('orders').doc(String(orderPayload.id)).set(orderPayload);
-                    alert(`Orden ${isEditing ? 'Actualizada' : 'Guardada y Material Descontado'}`);
+                    alert(`Orden ${isEditing ? 'Actualizada' : 'Guardada'} y el Inventario ha sido ajustado.`);
                     onCancel(); 
                 } catch(e) { 
                     console.error(e);
@@ -559,7 +584,7 @@
 
                     <div className="flex gap-4 mt-4">
                         {!predefinedPackages && <div className="w-32"><label className="text-xs font-bold">Pzs/Paquete</label><input type="number" value={packageSize} onChange={e=>setPackageSize(e.target.value)} className="border p-2 rounded w-full"/></div>}
-                        <button onClick={handleSubmit} className="flex-1 bg-slate-900 text-white font-bold rounded shadow hover:bg-slate-800 py-3">{isEditing ? 'GUARDAR CAMBIOS' : 'CREAR ORDEN Y DESCONTAR INVENTARIO'}</button>
+                        <button onClick={handleSubmit} className="flex-1 bg-slate-900 text-white font-bold rounded shadow hover:bg-slate-800 py-3">{isEditing ? 'GUARDAR CAMBIOS' : 'CREAR ORDEN Y AJUSTAR INVENTARIO'}</button>
                     </div>
                 </div>
             );
@@ -988,7 +1013,7 @@
                                 <h1 className="text-2xl font-black text-slate-800 flex gap-2 items-center">
                                     <Icon name="layout-dashboard"/> 
                                     <span>{viewMode === 'active' ? 'PLANTA' : 'HISTORIAL'}</span>
-                                    <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded ml-2">v2.6 DESCUENTO</span>
+                                    <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded ml-2">v2.6 INVENTARIO CORREGIDO</span>
                                 </h1>
                                 <div className="flex gap-2 items-center">
                                     <InstallButton />
